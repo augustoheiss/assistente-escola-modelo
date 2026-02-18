@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assistente Escola Modelo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Fundo com textura sutil inspirada no WhatsApp Dark */
+        .chat-bg {
+            background-color: #0f172a;
+            background-image: radial-gradient(#1e293b 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-200 font-sans min-h-screen flex items-center justify-center p-4">
+
+    <div class="w-full max-w-md h-[700px] bg-slate-900 border-4 border-slate-800 rounded-[2rem] shadow-2xl overflow-hidden flex flex-col relative">
+        
+        <header class="bg-slate-800 border-b border-slate-700 px-4 py-3 flex items-center gap-3 z-10 shadow-md">
+            <div class="w-10 h-10 bg-emerald-600 rounded-full flex items-center justify-center text-xl shadow-lg">
+                🤖
+            </div>
+            <div>
+                <h1 class="font-bold text-slate-100 leading-tight">Assistente Modelo</h1>
+                <p class="text-xs text-emerald-400 font-mono tracking-widest">● ONLINE (LOGOS)</p>
+            </div>
+        </header>
+
+        <div id="chat-box" class="flex-1 chat-bg overflow-y-auto p-4 flex flex-col gap-4">
+            <div class="flex flex-col gap-1 max-w-[85%] self-start">
+                <div class="bg-slate-800 border border-slate-700 text-slate-200 px-4 py-2 rounded-2xl rounded-tl-none shadow-sm text-sm leading-relaxed">
+                    Olá! Eu sou a Assistente Digital da Escola Modelo. Diga "Oi" para iniciarmos o atendimento.
+                </div>
+                <span class="text-[10px] text-slate-500 ml-1">Agora</span>
+            </div>
+        </div>
+
+        <footer class="bg-slate-800 border-t border-slate-700 p-3 z-10">
+            <form id="chat-form" class="flex gap-2">
+                <input 
+                    type="text" 
+                    id="user-input" 
+                    class="flex-1 bg-slate-900 border border-slate-700 text-slate-200 text-sm rounded-full px-4 py-3 outline-none focus:border-emerald-500 transition-colors"
+                    placeholder="Mensagem..."
+                    autocomplete="off"
+                    required
+                >
+                <button 
+                    type="submit" 
+                    class="bg-emerald-600 hover:bg-emerald-500 text-white w-12 h-12 rounded-full flex items-center justify-center transition-transform active:scale-95 shadow-lg"
+                >
+                    <svg class="w-5 h-5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                </button>
+            </form>
+        </footer>
+    </div>
+
+    <script>
+        const chatForm = document.getElementById('chat-form');
+        const userInput = document.getElementById('user-input');
+        const chatBox = document.getElementById('chat-box');
+
+        // Estado do nosso "Guardião do Limiar" (Simulação Local)
+        let passoAtual = 0;
+
+        // Função para adicionar mensagem na tela
+        function addMessage(text, isUser = false) {
+            const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            const alignClass = isUser ? 'self-end' : 'self-start';
+            const bgClass = isUser ? 'bg-emerald-700 text-white rounded-tr-none' : 'bg-slate-800 border border-slate-700 text-slate-200 rounded-tl-none';
+            
+            const msgHTML = `
+                <div class="flex flex-col gap-1 max-w-[85%] ${alignClass} animate-fade-in">
+                    <div class="${bgClass} px-4 py-2 rounded-2xl shadow-sm text-sm leading-relaxed">
+                        ${text}
+                    </div>
+                    <span class="text-[10px] text-slate-500 ${isUser ? 'mr-1 self-end' : 'ml-1 self-start'}">${time}</span>
+                </div>
+            `;
+            
+            chatBox.insertAdjacentHTML('beforeend', msgHTML);
+            chatBox.scrollTop = chatBox.scrollHeight; // Rola pro final
+        }
+
+        // Simula o tempo de "Digitando..." da IA
+        function botReply(text, delay = 1000) {
+            setTimeout(() => {
+                addMessage(text, false);
+            }, delay);
+        }
+
+        // Lógica de Atendimento (O Rascunho do Python)
+        chatForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const msg = userInput.value.trim();
+            if (!msg) return;
+
+            // 1. Joga a mensagem do usuário na tela
+            addMessage(msg, true);
+            userInput.value = '';
+
+            // 2. A Lógica do Guardião
+            if (passoAtual === 0) {
+                // FASE 1: Recebeu o primeiro contato. Simula que reconheceu o número.
+                botReply("Identifiquei seu número em nosso sistema. No entanto, a sabedoria não é jogada aos ventos.");
+                botReply("Para garantir a segurança do **Logos**, por favor, digite o NOME COMPLETO do estudante que você representa.", 2000);
+                passoAtual = 1;
+            } 
+            else if (passoAtual === 1) {
+                // FASE 2: Verificação do Nome (Aqui aceitaremos qualquer nome só para o teste visual)
+                botReply("Verificando credenciais no banco de dados...");
+                
+                setTimeout(() => {
+                    botReply(`Acesso Liberado. Vínculo confirmado com o estudante: **${msg.toUpperCase()}**.`);
+                    botReply("O motor RAG foi ativado. Como posso ajudar com os dados escolares, acadêmicos ou avisos gerais hoje?", 3500);
+                    passoAtual = 2; // Entrou no Intérprete
+                }, 2000);
+            }
+            else if (passoAtual === 2) {
+                // FASE 3: O Intérprete (RAG ativo)
+                botReply("*(Simulação)*: O Python acaba de enviar essa sua mensagem para a LLM, anexando o dossiê de faltas, notas e a pesquisa filosófica da região. A magia acontece aqui.");
+            }
+        });
+    </script>
+</body>
+</html>
