@@ -1,0 +1,19 @@
+# Interface
+streamlit>=1.32.0
+
+# Configuração e variáveis de ambiente
+python-dotenv>=1.0.0
+
+# Motor de IA — LLM e Embeddings Google
+langchain>=0.2.0
+langchain-core>=0.2.0
+langchain-community>=0.2.0
+langchain-text-splitters>=0.2.0
+langchain-google-genai>=1.0.0
+
+# Banco vetorial local (Escudo RAG)
+langchain-chroma>=0.1.0
+chromadb>=0.5.0
+
+# Leitura de PDFs
+pypdf>=4.0.0

@@ -1,0 +1,29 @@
+# Ambiente Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# Variáveis de ambiente e segredos
+.env
+
+# Banco de dados e dados locais
+*.db
+*.sqlite3
+
+# Documentos da escola (PDFs — não versionar, apenas o placeholder)
+data/documentos_escola/*
+!data/documentos_escola/.gitkeep
+
+# Base vetorial ChromaDB (gerada pelo setup_db.py)
+data/base_conhecimento/
+
+# Logs de auditoria (dados em produção — não versionar)
+data/logs/
+
+# IDEs
+.vscode/
+.idea/
+*.swp

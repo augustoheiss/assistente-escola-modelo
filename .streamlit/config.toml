@@ -1,0 +1,12 @@
+[server]
+# Desativa compressão WebSocket — resolve ERR_CONNECTION_REFUSED em redes instáveis
+enableWebsocketCompression = false
+# Tempo máximo de espera para carregamento inicial (em segundos)
+maxUploadSize = 10
+
+[browser]
+# Desativa telemetria do Streamlit
+gatherUsageStats = false
+
+[theme]
+base = "light"
