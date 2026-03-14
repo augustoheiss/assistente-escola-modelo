@@ -10,8 +10,8 @@ env/
 .env
 
 # Banco de dados e dados locais
-*.db
-*.sqlite3
+# *.db
+# *.sqlite3
 
 # Documentos da escola (PDFs — não versionar, apenas o placeholder)
 data/documentos_escola/*
