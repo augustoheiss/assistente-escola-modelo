@@ -475,10 +475,18 @@ with tab1:
             _aviso_cota = st.empty()
 
             def _cb_aviso(msg: str) -> None:
-                _aviso_cota.warning(msg, icon="⏳")
+                # Mensagens de Self-Healing (🔧 / ✅) → info azul
+                # Mensagens de Rate Limit (⏳)        → warning amarelo
+                if msg.startswith("⏳"):
+                    _aviso_cota.warning(msg, icon="⏳")
+                else:
+                    _aviso_cota.info(msg)
 
             try:
-                with st.spinner("Escudo RAG consultando os documentos da escola..."):
+                with st.spinner(
+                    "⚙️ Escudo RAG processando — "
+                    "pode levar 1-2 min no primeiro acesso na nuvem..."
+                ):
                     resposta = EscudoRAG().gerar(tipo_selecionado, contexto, callback_aviso=_cb_aviso)
                 st.session_state["resposta_rag"] = resposta
                 st.session_state["contexto_aula"] = contexto

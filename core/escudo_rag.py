@@ -299,13 +299,36 @@ class EscudoRAG:
                 "Adicione API_KEY ou GOOGLE_API_KEY ao arquivo .env."
             )
 
-        # ── Validação da base (via singleton — sem nova conexão) ──────────────
+        # ── Validação da base — Self-Healing automático ──────────────────────
+        # Se a base estiver vazia (ex: primeiro deploy na nuvem sem ChromaDB),
+        # o sistema ingere os PDFs automaticamente em vez de disparar erro.
         vs = self._obter_vector_store()
         if vs._collection.count() == 0:
-            raise ValueError(
-                "A base de conhecimento está vazia. "
-                "Execute 'python setup_db.py' no terminal antes de usar o modo RAG."
-            )
+            if callback_aviso:
+                callback_aviso(
+                    "🔧 **Primeiro acesso detectado.** A Base de Conhecimento Vetorial "
+                    "está sendo construída automaticamente. "
+                    "Isso levará cerca de 1–2 minutos no primeiro uso na nuvem..."
+                )
+            resultado = self.ingerir_documentos(forcar=False)
+            if resultado.get("status") == "erro":
+                raise ValueError(
+                    f"Falha ao construir a base automaticamente: "
+                    f"{resultado.get('mensagem', 'Erro desconhecido.')} "
+                    "Verifique se há PDFs em data/documentos_escola/."
+                )
+            # Descarta o singleton vazio e abre a instância recém-construída
+            EscudoRAG.limpar_cache_vector_store()
+            vs = self._obter_vector_store()
+            if vs._collection.count() == 0:
+                raise ValueError(
+                    "A base permanece vazia após a tentativa de construção automática. "
+                    "Verifique se há PDFs em data/documentos_escola/."
+                )
+            if callback_aviso:
+                callback_aviso(
+                    "✅ **Base construída com sucesso!** Gerando a resposta do Escudo RAG..."
+                )
 
         # ── BLINDAGEM 1: Top-K reduzido ───────────────────────────────────────
         # Apenas os _RETRIEVAL_K chunks mais relevantes chegam ao LLM.
