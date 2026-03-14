@@ -450,7 +450,7 @@ with tab1:
             botao_gerar = st.button(
                 "🛡️ Gerar com Escudo RAG",
                 type="primary",
-                use_container_width=True,
+                width="stretch",
                 disabled=not descricao.strip(),
             )
         if not descricao.strip():
@@ -607,14 +607,14 @@ with tab1:
             btn_enviar = st.button(
                 "📤 Enviar para o Responsável",
                 type="primary",
-                use_container_width=True,
+                width="stretch",
                 disabled=_envio_bloqueado,
             )
         with col_desc:
             btn_descartar = st.button(
                 "🗑️ Descartar Rascunho",
                 type="secondary",
-                use_container_width=True,
+                width="stretch",
             )
 
         if not confirmacao or not professor_nome.strip():
@@ -699,7 +699,7 @@ with tab2:
                 btn_responder = st.button(
                     "💬 Responder à Escola",
                     type="primary",
-                    use_container_width=True,
+                    width="stretch",
                     disabled=(not nome_responsavel.strip() or not resposta_texto.strip()),
                 )
             if not nome_responsavel.strip() or not resposta_texto.strip():
@@ -801,14 +801,14 @@ with tab3:
             btn_aprovar = st.button(
                 "✅ Aprovar e Registrar",
                 type="primary",
-                use_container_width=True,
+                width="stretch",
                 disabled=(not confirm_gestor or not gestor_nome.strip()),
             )
         with col_neg:
             btn_cancelar = st.button(
                 "↩️ Devolver ao Professor",
                 type="secondary",
-                use_container_width=True,
+                width="stretch",
             )
 
         if not confirm_gestor or not gestor_nome.strip():
@@ -894,7 +894,7 @@ with tab3:
                 "Gestor Aprovador": c.get("gestor_aprovador", ""),
                 "Modo": c.get("modo_operacao", ""),
             })
-        st.dataframe(linhas, use_container_width=True)
+        st.dataframe(linhas, width="stretch")
 
         with st.expander("🔍 Ver último ciclo completo (JSON)"):
             st.json(ciclos[-1])
