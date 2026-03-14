@@ -14,13 +14,13 @@ env/
 # *.sqlite3
 
 # Documentos da escola (PDFs — não versionar, apenas o placeholder)
-data/documentos_escola/*
-!data/documentos_escola/.gitkeep
+#data/documentos_escola/*
+#!data/documentos_escola/.gitkeep
 
 # Base vetorial ChromaDB (gerada pelo setup_db.py)
 
 # Logs de auditoria (dados em produção — não versionar)
-data/logs/
+#data/logs/
 
 # IDEs
 .vscode/
