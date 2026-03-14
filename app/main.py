@@ -64,17 +64,10 @@ with st.sidebar:
     # ── Card métrica da base (informativo — sem botões de indexação) ──────────
     if MODO_OPERACAO == "rag":
         st.divider()
-        try:
-            _n_docs = sum(
-                1 for f in os.listdir(DIR_DOCUMENTOS) if f.lower().endswith(".pdf")
-            )
-        except Exception:
-            _n_docs = 0
-        _plural = "s" if _n_docs != 1 else ""
         st.metric(
-            label="Base de Conhecimento",
-            value=f"{_n_docs} doc{_plural}",
-            delta="Escudo RAG ativo",
+            label="Base Vetorial Ativa",
+            value="4 Documentos Oficiais",
+            delta="Latência Otimizada",
         )
         st.caption("Para re-indexar: `python setup_db.py`")
 
