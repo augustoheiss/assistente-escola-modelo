@@ -537,12 +537,15 @@ with tab1:
                 '</div>',
                 unsafe_allow_html=True,
             )
+            # Renderizar como Markdown puro — fora de qualquer tag <p> HTML,
+            # que suprimiria bullet points e quebras de linha.
+            # O replace garante separação visual mesmo se o LLM omitir a linha em branco.
+            _rac = resposta.raciocinio.replace("* **", "\n\n* **").strip()
+            st.markdown(_rac)
             st.markdown(
-                f'<p style="font-size:0.91rem;color:#2c3060;line-height:1.55;">'
-                f'{resposta.raciocinio}</p>'
-                f'<hr style="border-color:#c5cae9;margin:0.8rem 0;">'
-                f'<strong style="font-size:0.82rem;color:#1e3a5f;text-transform:uppercase;'
-                f'letter-spacing:0.05em;">Fontes consultadas</strong>',
+                '<hr style="border-color:#c5cae9;margin:0.8rem 0;">'
+                '<strong style="font-size:0.82rem;color:#1e3a5f;text-transform:uppercase;'
+                'letter-spacing:0.05em;">Fontes consultadas</strong>',
                 unsafe_allow_html=True,
             )
             for fonte in resposta.fontes_consultadas:

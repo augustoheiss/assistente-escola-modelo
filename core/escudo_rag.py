@@ -97,8 +97,7 @@ TRECHOS DOS DOCUMENTOS OFICIAIS RECUPERADOS PELO ESCUDO RAG:
 Responda EXCLUSIVAMENTE em JSON válido, sem blocos de código ou texto adicional fora do JSON:
 {{
   "rascunho": "texto completo do documento, use \\n para quebras de linha",
-  "raciocinio": "explicação em markdown de quais trechos dos documentos embasaram cada \
-decisão tomada no rascunho. Cite o nome do arquivo e a página quando disponível."
+  "raciocinio": "explicação detalhada em Markdown estrito. IMPORTANTE: use obrigatoriamente uma linha em branco (\\n\\n) entre cada tópico ou bullet point para garantir legibilidade. Formato exigido: '* **Arquivo X, pág. Y:** trecho utilizado e decisão tomada.' com linha em branco separando cada bullet. Cite o nome do arquivo e a página consultada para cada decisão."
 }}
 """
 
