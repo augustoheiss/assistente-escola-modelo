@@ -619,7 +619,7 @@ with tab1:
 
         if btn_enviar:
             st.session_state["mensagem_enviada"] = st.session_state.get("rascunho_editado", resposta.rascunho)
-            st.session_state["professor_nome"] = professor_nome.strip()
+            st.session_state["professor_nome_log"] = professor_nome.strip()
             st.session_state["havia_ausencia"] = _aluno_ausente
             st.rerun()
 
@@ -731,7 +731,7 @@ with tab3:
         resp = st.session_state["resposta_responsavel"]
         contexto = st.session_state.get("contexto_aula", {})
         resposta_rag = st.session_state.get("resposta_rag")
-        professor = st.session_state.get("professor_nome", "Professor(a)")
+        professor = st.session_state.get("professor_nome_log", "Professor(a)")
 
         st.markdown(
             '<div class="bloco-gestor"><h4>📋 Resumo do Ciclo</h4>',
@@ -836,7 +836,7 @@ with tab3:
 
     elif _aprovado:
         gestor_final = st.session_state.get("gestor_nome_final", "Gestor(a)")
-        professor_final = st.session_state.get("professor_nome", "Professor(a)")
+        professor_final = st.session_state.get("professor_nome_log", "Professor(a)")
         contexto = st.session_state.get("contexto_aula", {})
         st.markdown(
             f'<div class="bloco-confirmado">'
@@ -851,7 +851,7 @@ with tab3:
         if st.button("⚙️ Nova Comunicação", type="primary"):
             for k in [
                 "resposta_rag", "contexto_aula", "tipo_tarefa_label", "rascunho_editado",
-                "mensagem_enviada", "professor_nome", "resposta_responsavel",
+                "mensagem_enviada", "professor_nome_log", "resposta_responsavel",
                 "ciclo_aprovado", "gestor_nome_final", "havia_ausencia",
                 "confirmacao_envio", "confirm_gestor",
             ]:
