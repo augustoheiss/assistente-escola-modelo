@@ -12,7 +12,7 @@ _PAGES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pages")
 sys.path.insert(0, _ROOT)
 
 import streamlit as st
-from config.settings import NOME_ESCOLA, MODO_OPERACAO
+from config.settings import NOME_ESCOLA, MODO_OPERACAO, DIR_DOCUMENTOS
 
 st.set_page_config(
     page_title=f"Assistente — {NOME_ESCOLA}",
@@ -22,12 +22,19 @@ st.set_page_config(
 )
 
 paginas = {
-    "Ferramentas": [
+    "Início": [
+        st.Page(
+            os.path.join(_PAGES, "00_manifesto.py"),
+            title="O Manifesto",
+            icon="🏛️",
+            default=True,
+        ),
+    ],
+    "Assistente": [
         st.Page(
             os.path.join(_PAGES, "01_alavanca.py"),
             title="A Alavanca",
             icon="⚙️",
-            default=True,
         ),
     ],
     "Governança": [
@@ -54,14 +61,22 @@ with st.sidebar:
 
     st.caption("Toda ação exige aprovação humana.")
 
-    # ── Status da base (informativo — sem botões de indexação) ────────────────
+    # ── Card métrica da base (informativo — sem botões de indexação) ──────────
     if MODO_OPERACAO == "rag":
         st.divider()
-        st.info(
-            "🛡️ **Base de Conhecimento Ativa**\n\n"
-            "84 documentos carregados.\n\n"
-            "Para re-indexar, use o terminal:\n`python setup_db.py`",
+        try:
+            _n_docs = sum(
+                1 for f in os.listdir(DIR_DOCUMENTOS) if f.lower().endswith(".pdf")
+            )
+        except Exception:
+            _n_docs = 0
+        _plural = "s" if _n_docs != 1 else ""
+        st.metric(
+            label="Base de Conhecimento",
+            value=f"{_n_docs} doc{_plural}",
+            delta="Escudo RAG ativo",
         )
+        st.caption("Para re-indexar: `python setup_db.py`")
 
     st.divider()
     st.caption("Assistente Escola Modelo v0.3")

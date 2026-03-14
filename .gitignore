@@ -18,7 +18,6 @@ data/documentos_escola/*
 !data/documentos_escola/.gitkeep
 
 # Base vetorial ChromaDB (gerada pelo setup_db.py)
-data/base_conhecimento/
 
 # Logs de auditoria (dados em produção — não versionar)
 data/logs/
@@ -27,3 +26,5 @@ data/logs/
 .vscode/
 .idea/
 *.swp
+ngrok.exe
+

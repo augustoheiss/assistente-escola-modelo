@@ -31,23 +31,161 @@ TIPOS_TAREFA = {
 
 st.markdown("""
 <style>
-/* ── Escudo RAG ── */
-.bloco-escudo {
-    background-color: #eef2ff;
-    border-left: 5px solid #3b5bdb;
-    padding: 1.2rem 1.5rem;
-    border-radius: 0 8px 8px 0;
-    margin-bottom: 1rem;
+
+/* ══════════════════════════════════════════════════════
+   HERO BANNER
+══════════════════════════════════════════════════════ */
+.hero-banner {
+    background: linear-gradient(135deg, #1a237e 0%, #3b5bdb 65%, #5c7cfa 100%);
+    border-radius: 18px;
+    padding: 2.4rem 2rem 2rem;
+    margin-bottom: 1.4rem;
+    text-align: center;
+    box-shadow: 0 8px 40px rgba(59,91,219,0.28);
+    position: relative;
+    overflow: hidden;
 }
-.bloco-escudo h4 { color: #1e3a5f; margin-top: 0; }
+.hero-banner::before {
+    content: '';
+    position: absolute;
+    top: -50%; right: -8%;
+    width: 340px; height: 340px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 50%;
+    pointer-events: none;
+}
+.hero-banner::after {
+    content: '';
+    position: absolute;
+    bottom: -40%; left: -6%;
+    width: 240px; height: 240px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 50%;
+    pointer-events: none;
+}
+.hero-icon { font-size: 2.8rem; line-height: 1; margin-bottom: 0.4rem; }
+.hero-title {
+    color: #ffffff !important;
+    font-size: 2.3rem !important;
+    font-weight: 800 !important;
+    margin: 0.1rem 0 0.5rem !important;
+    letter-spacing: -0.5px;
+}
+.hero-subtitle {
+    color: #c5cae9;
+    font-size: 0.97rem;
+    margin: 0 auto;
+    max-width: 520px;
+    line-height: 1.55;
+}
+.hero-badge {
+    display: inline-block;
+    background: rgba(255,255,255,0.14);
+    border: 1px solid rgba(255,255,255,0.28);
+    color: #e8eaff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 2px 13px;
+    border-radius: 20px;
+    margin-bottom: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+.hero-badge-mock {
+    background: rgba(255,193,7,0.2);
+    border-color: rgba(255,193,7,0.45);
+    color: #ffd43b;
+}
+
+/* ══════════════════════════════════════════════════════
+   CYCLE STATUS BAR
+══════════════════════════════════════════════════════ */
+.ciclo-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #f8f9ff;
+    border: 1px solid #dde3ff;
+    border-radius: 10px;
+    padding: 0.65rem 1.2rem;
+    margin-bottom: 1.4rem;
+}
+.ciclo-bar-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #7783a0;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+/* ══════════════════════════════════════════════════════
+   STEP HEADERS
+══════════════════════════════════════════════════════ */
+.step-header {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    margin: 1.1rem 0 0.8rem;
+}
+.step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px; height: 30px;
+    background: #3b5bdb;
+    color: #fff;
+    font-size: 0.82rem;
+    font-weight: 800;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(59,91,219,0.35);
+}
+.step-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #1a237e;
+    margin: 0;
+}
+
+/* ══════════════════════════════════════════════════════
+   ESCUDO RAG CARD (premium)
+══════════════════════════════════════════════════════ */
+.bloco-escudo {
+    background-color: #f5f7ff;
+    border: 1px solid #c5cae9;
+    border-radius: 12px;
+    padding: 0 1.2rem 1.2rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 4px 20px rgba(59,91,219,0.10);
+    overflow: hidden;
+}
+.escudo-topbar {
+    background: linear-gradient(90deg, #3b5bdb 0%, #5c7cfa 100%);
+    margin: 0 -1.2rem 1rem;
+    padding: 0.55rem 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.escudo-topbar-title {
+    color: #fff !important;
+    font-size: 0.88rem !important;
+    font-weight: 700 !important;
+    margin: 0 !important;
+    letter-spacing: 0.03em;
+}
 .fonte-item {
     background: #dbe4ff;
     border-radius: 6px;
     padding: 0.5rem 0.8rem;
     margin: 0.4rem 0;
-    font-size: 0.88rem;
+    font-size: 0.86rem;
+    border-left: 3px solid #4c6ef5;
 }
-/* ── Ausência ── */
+
+/* ══════════════════════════════════════════════════════
+   AUSÊNCIA
+══════════════════════════════════════════════════════ */
 .bloco-ausencia {
     background-color: #fff4e6;
     border-left: 5px solid #e8590c;
@@ -58,15 +196,22 @@ st.markdown("""
     color: #7c3e00;
 }
 .bloco-ausencia strong { color: #c0390b; }
-/* ── Supervisão ── */
+
+/* ══════════════════════════════════════════════════════
+   SUPERVISÃO HUMANA
+══════════════════════════════════════════════════════ */
 .bloco-supervisao {
-    background-color: #fff8e1;
+    background: linear-gradient(135deg, #fffde7, #fff8e1);
     border: 2px solid #f59f00;
-    border-radius: 10px;
+    border-radius: 12px;
     padding: 1.5rem;
     margin-top: 1.5rem;
+    box-shadow: 0 3px 14px rgba(245,159,0,0.12);
 }
-/* ── Celular / Phone frame ── */
+
+/* ══════════════════════════════════════════════════════
+   CELULAR / PHONE FRAME
+══════════════════════════════════════════════════════ */
 .celular-wrap {
     display: flex;
     justify-content: center;
@@ -79,7 +224,7 @@ st.markdown("""
     padding: 0;
     width: 100%;
     max-width: 420px;
-    box-shadow: 0 6px 24px rgba(0,0,0,0.18);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.22);
     overflow: hidden;
 }
 .celular-header {
@@ -104,7 +249,7 @@ st.markdown("""
     font-size: 0.86rem;
     white-space: pre-wrap;
     word-break: break-word;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.09);
 }
 .msg-familia {
     background: #ffffff;
@@ -114,7 +259,7 @@ st.markdown("""
     font-size: 0.86rem;
     white-space: pre-wrap;
     word-break: break-word;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.09);
 }
 .msg-meta {
     font-size: 0.72rem;
@@ -130,25 +275,36 @@ st.markdown("""
     text-align: center;
     border-top: 1px solid #ddd;
 }
-/* ── Gestor ── */
+
+/* ══════════════════════════════════════════════════════
+   GESTOR
+══════════════════════════════════════════════════════ */
 .bloco-gestor {
     background: #f3f0ff;
     border: 2px solid #7048e8;
-    border-radius: 10px;
+    border-radius: 12px;
     padding: 1.3rem 1.5rem;
     margin-bottom: 1rem;
+    box-shadow: 0 3px 14px rgba(112,72,232,0.10);
 }
 .bloco-gestor h4 { color: #3b1fa8; margin-top: 0; }
-/* ── Confirmado ── */
+
+/* ══════════════════════════════════════════════════════
+   CONFIRMADO
+══════════════════════════════════════════════════════ */
 .bloco-confirmado {
-    background-color: #d8f3dc;
+    background: linear-gradient(135deg, #d8f3dc, #b7e4c7);
     border: 2px solid #2d6a4f;
-    border-radius: 10px;
-    padding: 1.5rem;
+    border-radius: 12px;
+    padding: 1.8rem;
     margin-top: 1rem;
     text-align: center;
+    box-shadow: 0 4px 16px rgba(45,106,79,0.12);
 }
-/* ── Status pills ── */
+
+/* ══════════════════════════════════════════════════════
+   STATUS PILLS
+══════════════════════════════════════════════════════ */
 .pill {
     display: inline-block;
     padding: 3px 12px;
@@ -161,6 +317,7 @@ st.markdown("""
 .pill-enviado    { background: #cce5ff; color: #003d7a; }
 .pill-respondido { background: #d4edda; color: #155724; }
 .pill-aprovado   { background: #d8f3dc; color: #1b5e20; }
+
 /* ── Tag modo ── */
 .tag-modo {
     display: inline-block;
@@ -172,33 +329,47 @@ st.markdown("""
     border-radius: 20px;
     margin-bottom: 0.5rem;
 }
+
 </style>
 """, unsafe_allow_html=True)
 
 
-# ── Cabeçalho ─────────────────────────────────────────────────────────────────
-
-st.title("⚙️ A Alavanca")
-
-if MODO_OPERACAO == "mock":
-    st.markdown(
-        '<span class="tag-modo">🟡 MODO SIMULAÇÃO — IA real desativada</span>',
-        unsafe_allow_html=True,
-    )
-
-# Indicador de progresso do ciclo
-_enviada = bool(st.session_state.get("mensagem_enviada"))
+# ── Estado do ciclo (calculado antes do hero para uso no badge) ───────────────
+_enviada   = bool(st.session_state.get("mensagem_enviada"))
 _respondida = bool(st.session_state.get("resposta_responsavel"))
-_aprovado = bool(st.session_state.get("ciclo_aprovado"))
+_aprovado  = bool(st.session_state.get("ciclo_aprovado"))
 
+# ── Hero Banner ───────────────────────────────────────────────────────────────
+_badge_modo = (
+    '<span class="hero-badge hero-badge-mock">🟡 Modo Simulação</span>'
+    if MODO_OPERACAO == "mock"
+    else '<span class="hero-badge">🟢 Escudo RAG Ativo</span>'
+)
+st.markdown(
+    f'<div class="hero-banner">'
+    f'{_badge_modo}'
+    f'<div class="hero-icon">⚙️</div>'
+    f'<h1 class="hero-title">A Alavanca</h1>'
+    f'<p class="hero-subtitle">O fim da religião da burocracia.<br>'
+    f'Automação com a Ética do Segundo Atual.</p>'
+    f'</div>',
+    unsafe_allow_html=True,
+)
+
+# ── Barra de status do ciclo ──────────────────────────────────────────────────
 _estado = (
     '<span class="pill pill-aprovado">✅ Ciclo aprovado</span>' if _aprovado else
     '<span class="pill pill-respondido">💬 Aguardando gestor</span>' if _respondida else
     '<span class="pill pill-enviado">📤 Mensagem enviada</span>' if _enviada else
     '<span class="pill pill-aguardando">⏳ Aguardando geração</span>'
 )
-st.markdown(f"**Estado do ciclo:** {_estado}", unsafe_allow_html=True)
-st.divider()
+st.markdown(
+    f'<div class="ciclo-bar">'
+    f'<span class="ciclo-bar-label">Estado do ciclo</span>'
+    f'{_estado}'
+    f'</div>',
+    unsafe_allow_html=True,
+)
 
 # ── 3 Abas ────────────────────────────────────────────────────────────────────
 
@@ -220,7 +391,13 @@ with tab1:
     elif _enviada:
         st.info("📤 Mensagem enviada à família. Aguarde a resposta na **Aba 2 — Celular da Família**.")
     else:
-        st.subheader("① Descreva a tarefa")
+        st.markdown(
+            '<div class="step-header">'
+            '<span class="step-num">1</span>'
+            '<span class="step-title">Descreva a tarefa</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
 
         col_tipo, col_turma = st.columns([2, 1])
         with col_tipo:
@@ -300,22 +477,36 @@ with tab1:
             def _cb_aviso(msg: str) -> None:
                 _aviso_cota.warning(msg, icon="⏳")
 
-            with st.spinner("Escudo RAG consultando os documentos da escola..."):
-                resposta = EscudoRAG().gerar(tipo_selecionado, contexto, callback_aviso=_cb_aviso)
-            st.session_state["resposta_rag"] = resposta
-            st.session_state["contexto_aula"] = contexto
-            st.session_state["tipo_tarefa_label"] = TIPOS_TAREFA[tipo_selecionado]
-            st.session_state.pop("mensagem_enviada", None)
-            st.session_state.pop("resposta_responsavel", None)
-            st.session_state.pop("ciclo_aprovado", None)
-            st.rerun()
+            try:
+                with st.spinner("Escudo RAG consultando os documentos da escola..."):
+                    resposta = EscudoRAG().gerar(tipo_selecionado, contexto, callback_aviso=_cb_aviso)
+                st.session_state["resposta_rag"] = resposta
+                st.session_state["contexto_aula"] = contexto
+                st.session_state["tipo_tarefa_label"] = TIPOS_TAREFA[tipo_selecionado]
+                st.session_state.pop("mensagem_enviada", None)
+                st.session_state.pop("resposta_responsavel", None)
+                st.session_state.pop("ciclo_aprovado", None)
+                st.rerun()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                st.error(
+                    f"⚠️ Erro capturado pelo sistema: {str(e)}\n\n"
+                    "O servidor continua ativo. Verifique o terminal para o traceback completo."
+                )
 
     # ── Rascunho + Painel Azul ────────────────────────────────────────────────
 
     if "resposta_rag" in st.session_state and not _enviada:
         resposta = st.session_state["resposta_rag"]
 
-        st.subheader("② Revise o rascunho")
+        st.markdown(
+            '<div class="step-header">'
+            '<span class="step-num">2</span>'
+            '<span class="step-title">Revise o rascunho</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
         col_rascunho, col_escudo = st.columns([3, 2])
 
         with col_rascunho:
@@ -331,18 +522,31 @@ with tab1:
 
         with col_escudo:
             st.markdown(
-                f'<div class="bloco-escudo"><h4>🛡️ Raciocínio do Escudo RAG</h4>'
-                f'<p style="font-size:0.91rem;color:#333;">{resposta.raciocinio}</p>'
+                '<div class="bloco-escudo">'
+                '<div class="escudo-topbar">'
+                '<span style="font-size:1.1rem;">🛡️</span>'
+                '<span class="escudo-topbar-title">Raciocínio do Escudo RAG</span>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                f'<p style="font-size:0.91rem;color:#2c3060;line-height:1.55;">'
+                f'{resposta.raciocinio}</p>'
                 f'<hr style="border-color:#c5cae9;margin:0.8rem 0;">'
-                f'<strong style="font-size:0.84rem;color:#1e3a5f;">Fontes consultadas:</strong>',
+                f'<strong style="font-size:0.82rem;color:#1e3a5f;text-transform:uppercase;'
+                f'letter-spacing:0.05em;">Fontes consultadas</strong>',
                 unsafe_allow_html=True,
             )
             for fonte in resposta.fontes_consultadas:
                 cor = "#2d6a4f" if fonte.relevancia == "Alta" else "#7c4d00"
+                icone = "🟢" if fonte.relevancia == "Alta" else "🟡"
                 st.markdown(
-                    f'<div class="fonte-item"><strong>{fonte.documento}</strong><br>'
-                    f'<em style="color:#555;">"{fonte.trecho}"</em><br>'
-                    f'<span style="color:{cor};font-size:0.8rem;">● Relevância: {fonte.relevancia}</span></div>',
+                    f'<div class="fonte-item">'
+                    f'<strong style="color:#1a237e;">{fonte.documento}</strong><br>'
+                    f'<em style="color:#555;font-size:0.83rem;">"{fonte.trecho}"</em><br>'
+                    f'<span style="color:{cor};font-size:0.79rem;">'
+                    f'{icone} Relevância: {fonte.relevancia}</span>'
+                    f'</div>',
                     unsafe_allow_html=True,
                 )
             st.markdown("</div>", unsafe_allow_html=True)
@@ -350,9 +554,16 @@ with tab1:
         # ── Área de envio ─────────────────────────────────────────────────────
 
         st.markdown(
+            '<div class="step-header" style="margin-top:1.4rem;">'
+            '<span class="step-num">3</span>'
+            '<span class="step-title">Supervisão Humana — Enviar ao Responsável</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(
             '<div class="bloco-supervisao">'
-            '<h4 style="color:#7c4d00;margin-top:0;">③ ✍️ Supervisão Humana — Enviar para o Responsável</h4>'
-            '<p style="color:#5c3d00;font-size:0.93rem;">Você revisou o rascunho e o raciocínio do Escudo RAG. '
+            '<p style="color:#5c3d00;font-size:0.93rem;margin:0;">Você revisou o rascunho e o '
+            'raciocínio do Escudo RAG. '
             '<strong>Ao clicar em Enviar, você assume a responsabilidade por este conteúdo.</strong></p>'
             '</div>',
             unsafe_allow_html=True,
@@ -363,18 +574,30 @@ with tab1:
             placeholder="Prof(a). Nome Sobrenome",
             key="professor_nome",
         )
+
+        _nome_incompleto = bool(
+            professor_nome.strip() and len(professor_nome.strip().split()) < 2
+        )
+        if _nome_incompleto:
+            st.info(
+                "Por favor, insira Nome e Sobrenome para registro no sistema "
+                "(ex: *Prof. Sérgio Oliveira*).",
+                icon="ℹ️",
+            )
+
         confirmacao = st.checkbox(
             "Li o rascunho, revisei o raciocínio do Escudo RAG e assumo a responsabilidade por esta mensagem.",
             key="confirmacao_envio",
         )
 
+        _envio_bloqueado = not confirmacao or not professor_nome.strip() or _nome_incompleto
         col_env, col_desc, _ = st.columns([1, 1, 2])
         with col_env:
             btn_enviar = st.button(
                 "📤 Enviar para o Responsável",
                 type="primary",
                 use_container_width=True,
-                disabled=(not confirmacao or not professor_nome.strip()),
+                disabled=_envio_bloqueado,
             )
         with col_desc:
             btn_descartar = st.button(
