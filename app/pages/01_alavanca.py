@@ -9,6 +9,8 @@ Fluxo em 3 abas (Capítulos 3 e 4 do Manifesto):
 
 import sys
 import os
+import json
+import re
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
@@ -32,6 +34,32 @@ COR_URGENCIA = {
     "media": ("#fffbeb", "#b7791f", "🟡"),
     "baixa": ("#f0fff4", "#276749", "🟢"),
 }
+
+
+def _extrair_rascunho_raciocinio(resposta) -> tuple:
+    """
+    Parser de segurança: se o LLM retornou JSON bruto (ex: parsing falhou no backend),
+    extrai 'rascunho' e 'raciocinio' para exibição limpa.
+    Usa json.loads com try/except para JSONDecodeError.
+    """
+    rascunho = resposta.rascunho if hasattr(resposta, "rascunho") else str(resposta)
+    raciocinio = resposta.raciocinio if hasattr(resposta, "raciocinio") else ""
+    s = (rascunho or "").strip()
+    # Remove blocos markdown ```json ... ``` que às vezes envolvem o output
+    if s.startswith("```"):
+        s = re.sub(r"^```(?:json)?\s*\n?", "", s)
+        s = re.sub(r"\n?\s*```\s*$", "", s)
+        s = s.strip()
+    if s.startswith("{") and ("rascunho" in s or "raciocinio" in s):
+        try:
+            data = json.loads(s)
+            if isinstance(data, dict):
+                rascunho = data.get("rascunho", rascunho)
+                raciocinio = data.get("raciocinio", raciocinio)
+        except json.JSONDecodeError:
+            pass  # mantém rascunho/raciocinio originais se JSON inválido
+    return rascunho, raciocinio
+
 
 # ── CSS ───────────────────────────────────────────────────────────────────────
 
@@ -690,6 +718,13 @@ with tab1:
                     label = LABEL_ACAO.get(acao.tipo, "📄 Gerar Documento")
                     if st.button(label, key=f"btn_acao_{i}", width="stretch"):
                         tipo_tarefa = _ACAO_PARA_TAREFA.get(acao.tipo, "comunicado_pais")
+                        _nota_licao = ""
+                        if acao.tipo == "comunicado_familia" and "falt" in (acao.gatilho or "").lower():
+                            _nota_licao = (
+                                "\n\nINSTRUÇÃO: Inclua ao final do comunicado uma seção "
+                                "'Lição de Casa' com as atividades do dia. "
+                                "Use LaTeX inline para fórmulas (ex: $x^2$, $\\frac{a}{b}$)."
+                            )
                         contexto_completo = {
                             "turma":           ctx.get("turma", ""),
                             "data_referencia": ctx.get("data_referencia", ""),
@@ -698,7 +733,7 @@ with tab1:
                             # O contexto da ação é a descrição dela + o diário como base
                             "descricao": (
                                 f"{acao.descricao}\n\n"
-                                f"Contexto do diário de classe:\n{diario_final}"
+                                f"Contexto do diário de classe:\n{diario_final}{_nota_licao}"
                             ),
                             "status_aluno": (
                                 "Ausente (Faltou)"
@@ -743,6 +778,7 @@ with tab1:
     # ══════════════════════════════════════════════════════════════════════════
     if _tem_resposta and not _enviada and not _aprovado:
         resposta = st.session_state["resposta_rag"]
+        rascunho_exib, raciocinio_exib = _extrair_rascunho_raciocinio(resposta)
 
         st.markdown(
             '<div class="step-header">'
@@ -757,7 +793,7 @@ with tab1:
             st.markdown("**✏️ Rascunho (editável)**")
             rascunho_editado = st.text_area(
                 label="rascunho",
-                value=resposta.rascunho,
+                value=rascunho_exib,
                 height=300,
                 key="rascunho_editado",
                 label_visibility="collapsed",
@@ -773,8 +809,9 @@ with tab1:
                 '</div>',
                 unsafe_allow_html=True,
             )
-            _rac = resposta.raciocinio.replace("* **", "\n\n* **").strip()
-            st.markdown(_rac)
+            with st.expander("Ver Raciocínio da IA", expanded=False):
+                _rac = (raciocinio_exib or "").replace("* **", "\n\n* **").strip()
+                st.markdown(_rac)
             st.markdown(
                 '<hr style="border-color:#c5cae9;margin:0.8rem 0;">'
                 '<strong style="font-size:0.82rem;color:#1e3a5f;text-transform:uppercase;'
