@@ -40,25 +40,43 @@ def _extrair_rascunho_raciocinio(resposta) -> tuple:
     """
     Parser de segurança: se o LLM retornou JSON bruto (ex: parsing falhou no backend),
     extrai 'rascunho' e 'raciocinio' para exibição limpa.
-    Usa json.loads com try/except para JSONDecodeError.
+    Usa json.loads com try/except para JSONDecodeError. Plano B: exibe texto bruto.
     """
     rascunho = resposta.rascunho if hasattr(resposta, "rascunho") else str(resposta)
     raciocinio = resposta.raciocinio if hasattr(resposta, "raciocinio") else ""
+    if not (rascunho or "").strip():
+        return rascunho or "", raciocinio or ""
+
     s = (rascunho or "").strip()
     # Remove blocos markdown ```json ... ``` que às vezes envolvem o output
-    if s.startswith("```"):
+    if "```" in s:
         s = re.sub(r"^```(?:json)?\s*\n?", "", s)
         s = re.sub(r"\n?\s*```\s*$", "", s)
         s = s.strip()
-    if s.startswith("{") and ("rascunho" in s or "raciocinio" in s):
+
+    # Tenta interpretar como JSON (LLM às vezes devolve string bruta com chaves "rascunho" e "raciocinio")
+    if ("rascunho" in s or "raciocinio" in s) and ("{" in s and "}" in s):
         try:
             data = json.loads(s)
             if isinstance(data, dict):
                 rascunho = data.get("rascunho", rascunho)
                 raciocinio = data.get("raciocinio", raciocinio)
+                return rascunho or "", raciocinio or ""
         except json.JSONDecodeError:
-            pass  # mantém rascunho/raciocinio originais se JSON inválido
-    return rascunho, raciocinio
+            # Tenta extrair trecho entre primeiro { e último }
+            idx_abre = s.find("{")
+            idx_fecha = s.rfind("}")
+            if idx_abre != -1 and idx_fecha != -1 and idx_fecha > idx_abre:
+                try:
+                    data = json.loads(s[idx_abre : idx_fecha + 1])
+                    if isinstance(data, dict):
+                        rascunho = data.get("rascunho", rascunho)
+                        raciocinio = data.get("raciocinio", raciocinio)
+                        return rascunho or "", raciocinio or ""
+                except json.JSONDecodeError:
+                    pass
+    # Plano B: retorna como recebido (exibição do texto bruto)
+    return rascunho or "", raciocinio or ""
 
 
 # ── CSS ───────────────────────────────────────────────────────────────────────
@@ -806,7 +824,7 @@ with tab1:
                 '</div>',
                 unsafe_allow_html=True,
             )
-            with st.expander("Ver Raciocínio da IA", expanded=False):
+            with st.expander("Ver Raciocínio e Fontes da IA", expanded=False):
                 _rac = (raciocinio_exib or "").replace("* **", "\n\n* **").strip()
                 st.markdown(_rac)
             st.markdown(
