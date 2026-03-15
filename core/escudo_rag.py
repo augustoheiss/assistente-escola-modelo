@@ -8,9 +8,9 @@ Filosofia (do Manifesto):
 Pipeline Fase 2:
   1. ingerir_documentos() — lê PDFs, divide em chunks, gera embeddings
      com GoogleGenerativeAIEmbeddings e persiste no ChromaDB local.
-  2. gerar() em modo "rag" — busca semântica no ChromaDB, monta prompt
-     com contexto real, chama gemini-2.5-flash e retorna RespostaRAG
-     com rascunho + raciocínio + fontes consultadas.
+  2. gerar() — busca semântica + LLM → RespostaRAG (comunicado/ocorrência/lição).
+  3. analisar_diario() — AGENTIC: formaliza o relato do dia e detecta ações
+     recomendadas automaticamente (faltas, ocorrências, destaques) → RespostaDiario.
 
 Modo "mock" (Fase 1) é mantido para testes sem API key.
 """
@@ -46,6 +46,25 @@ class RespostaRAG:
     raciocinio: str
     tipo_tarefa: str
     contexto_entrada: str
+
+
+@dataclass
+class AcaoRecomendada:
+    """Ação pedagógica detectada automaticamente pelo pipeline Agentic."""
+    tipo: str       # comunicado_familia | registro_ocorrencia | encaminhamento_coordenacao | destaque_positivo
+    titulo: str
+    descricao: str
+    urgencia: str   # alta | media | baixa
+    gatilho: str    # trecho do relato que motivou a ação
+
+
+@dataclass
+class RespostaDiario:
+    """Resultado do pipeline Agentic: diário formalizado + ações recomendadas."""
+    diario_formalizado: str
+    next_actions: List[AcaoRecomendada]
+    raciocinio: str
+    fontes_consultadas: List[FonteConsultada]
 
 
 # ── Constantes de geração ─────────────────────────────────────────────────────
@@ -102,6 +121,57 @@ Responda EXCLUSIVAMENTE em JSON válido, sem blocos de código ou texto adiciona
 """
 
 
+# ── Mapeamento ação agêntica → tipo de tarefa existente ──────────────────────
+_ACAO_PARA_TAREFA: dict = {
+    "comunicado_familia":         "comunicado_pais",
+    "registro_ocorrencia":        "registro_ocorrencia",
+    "encaminhamento_coordenacao": "comunicado_pais",
+    "destaque_positivo":          "comunicado_pais",
+}
+
+# ── Prompt para pipeline Agentic (Diário de Classe) ───────────────────────────
+_PROMPT_DIARIO = """\
+Você é o Escudo RAG do Assistente Escola Modelo, atuando como analista proativo do Diário de Classe.
+
+MISSÃO: formalizar o relato do professor e identificar automaticamente as ações pedagógicas necessárias.
+
+REGRAS INVIOLÁVEIS:
+1. O "diario_formalizado" deve preservar TODOS os fatos do relato — nunca omita nem invente nada.
+2. Cada ação em "next_actions" deve ter evidência EXPLÍCITA no relato. Não crie ações sem evidência.
+3. O "gatilho" de cada ação deve citar a frase exata do relato que a motivou.
+4. Baseie as recomendações nas diretrizes dos documentos oficiais fornecidos abaixo.
+5. Tom: formal e objetivo. Este é um RASCUNHO para revisão humana — nunca uma decisão final.
+
+DADOS FORNECIDOS PELO PROFESSOR:
+- Escola: {nome_escola}
+- Turma: {turma}
+- Data de referência: {data_referencia}
+- Aluno(s) envolvido(s): {aluno}
+- Relato do Professor: {relato}
+
+TRECHOS DOS DOCUMENTOS OFICIAIS RECUPERADOS PELO ESCUDO RAG:
+{contexto_documentos}
+
+---
+Responda EXCLUSIVAMENTE em JSON válido, sem blocos de código ou texto fora do JSON:
+{{
+  "diario_formalizado": "texto completo e formal do diário, use \\n para quebras de linha",
+  "raciocinio": "explicação em Markdown. OBRIGATÓRIO: linha em branco (\\n\\n) entre cada bullet. Formato: '* **Arquivo, pág.:** decisão e evidência.'",
+  "next_actions": [
+    {{
+      "tipo": "comunicado_familia|registro_ocorrencia|encaminhamento_coordenacao|destaque_positivo",
+      "titulo": "título curto e objetivo da ação",
+      "descricao": "o que fazer e por quê, baseado nos documentos oficiais",
+      "urgencia": "alta|media|baixa",
+      "gatilho": "frase exata do relato que motivou esta ação"
+    }}
+  ]
+}}
+
+Se não houver ações necessárias, retorne "next_actions": [].
+"""
+
+
 # ── Classe principal ──────────────────────────────────────────────────────────
 
 class EscudoRAG:
@@ -111,7 +181,24 @@ class EscudoRAG:
     antes de gerar qualquer palavra.
     """
 
-    # ── Ponto de entrada público ──────────────────────────────────────────────
+    # ── Pontos de entrada públicos ────────────────────────────────────────────
+
+    def analisar_diario(
+        self,
+        contexto: dict,
+        callback_aviso: Optional[Callable[[str], None]] = None,
+    ) -> "RespostaDiario":
+        """
+        Pipeline Agentic: formaliza o relato do Diário de Classe e detecta
+        automaticamente ações pedagógicas necessárias (faltas, ocorrências,
+        destaques). Retorna RespostaDiario com diario_formalizado + next_actions.
+
+        contexto esperado:
+          turma, data_referencia, relato, aluno (opcional), nome_escola
+        """
+        if MODO_OPERACAO == "mock":
+            return self._analisar_diario_mock(contexto)
+        return self._analisar_diario_rag(contexto, callback_aviso)
 
     def gerar(
         self,
@@ -424,6 +511,203 @@ class EscudoRAG:
             raciocinio=saida["raciocinio"],
             tipo_tarefa=tipo_tarefa,
             contexto_entrada=str(contexto),
+        )
+
+    # ── Pipeline Agentic — Diário de Classe ──────────────────────────────────
+
+    def _analisar_diario_rag(
+        self,
+        contexto: dict,
+        callback_aviso: Optional[Callable[[str], None]] = None,
+    ) -> "RespostaDiario":
+        """
+        Versão RAG do pipeline Agentic.
+        Reutiliza o mesmo vector store, retry e self-healing do pipeline gerar().
+        """
+        from langchain_google_genai import ChatGoogleGenerativeAI
+
+        if not GOOGLE_API_KEY:
+            raise EnvironmentError(
+                "GOOGLE_API_KEY não encontrada. "
+                "Adicione API_KEY ou GOOGLE_API_KEY ao arquivo .env."
+            )
+
+        # ── Self-Healing idêntico ao gerar() ─────────────────────────────────
+        vs = self._obter_vector_store()
+        if vs._collection.count() == 0:
+            if callback_aviso:
+                callback_aviso(
+                    "🔧 **Primeiro acesso detectado.** Construindo a Base de "
+                    "Conhecimento Vetorial automaticamente..."
+                )
+            resultado = self.ingerir_documentos(forcar=False)
+            if resultado.get("status") == "erro":
+                raise ValueError(
+                    f"Falha ao construir a base: {resultado.get('mensagem', '')}"
+                )
+            EscudoRAG.limpar_cache_vector_store()
+            vs = self._obter_vector_store()
+            if vs._collection.count() == 0:
+                raise ValueError(
+                    "Base vazia após tentativa de construção. "
+                    "Verifique se há PDFs em data/documentos_escola/."
+                )
+            if callback_aviso:
+                callback_aviso("✅ **Base construída!** Analisando o diário...")
+
+        # ── Busca semântica com query voltada ao diário ───────────────────────
+        relato = contexto.get("relato", "")
+        query = (
+            f"diário de classe turma {contexto.get('turma', '')} "
+            f"comunicado falta ocorrência {relato[:300]}"
+        )
+        docs_com_scores = vs.similarity_search_with_relevance_scores(
+            query, k=_RETRIEVAL_K
+        )
+
+        # ── Fontes consultadas ────────────────────────────────────────────────
+        arquivos_vistos: dict = {}
+        for doc, score in docs_com_scores:
+            arq = doc.metadata.get("arquivo", "documento desconhecido")
+            if arq not in arquivos_vistos:
+                trecho = doc.page_content[:280].replace("\n", " ").strip()
+                arquivos_vistos[arq] = {
+                    "trecho": trecho + "...",
+                    "relevancia": "Alta" if score >= 0.55 else "Média",
+                }
+        fontes = [
+            FonteConsultada(documento=arq, trecho=d["trecho"], relevancia=d["relevancia"])
+            for arq, d in arquivos_vistos.items()
+        ]
+
+        # ── Contexto truncado ─────────────────────────────────────────────────
+        contexto_documentos = "\n\n---\n\n".join(
+            f"[{doc.metadata.get('arquivo', '?')} | "
+            f"pág.{doc.metadata.get('page', '?')} | score:{score:.2f}]\n"
+            f"{doc.page_content[:_MAX_CHARS_CHUNK]}"
+            for doc, score in docs_com_scores
+        )
+
+        # ── Prompt Agentic ────────────────────────────────────────────────────
+        prompt = _PROMPT_DIARIO.format(
+            nome_escola=contexto.get("nome_escola", NOME_ESCOLA),
+            turma=contexto.get("turma", ""),
+            data_referencia=contexto.get("data_referencia", ""),
+            aluno=contexto.get("aluno", "N/A"),
+            relato=relato,
+            contexto_documentos=contexto_documentos,
+        )
+
+        llm = ChatGoogleGenerativeAI(
+            model=_LLM_MODEL,
+            google_api_key=GOOGLE_API_KEY,
+            temperature=0.2,
+        )
+
+        # ── Retry com backoff (idêntico ao gerar()) ───────────────────────────
+        resposta_llm = None
+        ultimo_erro = None
+        for tentativa in range(1, _MAX_RETRIES + 1):
+            try:
+                resposta_llm = llm.invoke(prompt)
+                break
+            except Exception as exc:
+                ultimo_erro = exc
+                msg_exc = str(exc).lower()
+                is_rate_limit = (
+                    "429" in str(exc)
+                    or "resourceexhausted" in msg_exc
+                    or "quota exceeded" in msg_exc
+                    or "rate limit" in msg_exc
+                )
+                if is_rate_limit and tentativa < _MAX_RETRIES:
+                    aviso = (
+                        f"⏳ Rate limit atingido (tentativa {tentativa}/{_MAX_RETRIES}). "
+                        f"Aguardando {_RETRY_WAIT_S}s para a cota renovar..."
+                    )
+                    if callback_aviso:
+                        callback_aviso(aviso)
+                    time.sleep(_RETRY_WAIT_S)
+                else:
+                    raise
+
+        if resposta_llm is None:
+            raise RuntimeError(
+                f"Falha após {_MAX_RETRIES} tentativas. Último erro: {ultimo_erro}"
+            )
+
+        # ── Parsing do JSON Agentic ───────────────────────────────────────────
+        saida = self._parse_json_resposta(resposta_llm.content)
+
+        acoes = [
+            AcaoRecomendada(
+                tipo=a.get("tipo", "comunicado_familia"),
+                titulo=a.get("titulo", "Ação sem título"),
+                descricao=a.get("descricao", ""),
+                urgencia=a.get("urgencia", "media"),
+                gatilho=a.get("gatilho", ""),
+            )
+            for a in saida.get("next_actions", [])
+            if isinstance(a, dict)
+        ]
+
+        return RespostaDiario(
+            diario_formalizado=saida.get("diario_formalizado", ""),
+            next_actions=acoes,
+            raciocinio=saida.get("raciocinio", ""),
+            fontes_consultadas=fontes,
+        )
+
+    def _analisar_diario_mock(self, contexto: dict) -> "RespostaDiario":
+        """Versão mock do pipeline Agentic — para testes sem API key."""
+        relato = contexto.get("relato", "")
+        tem_falta = any(w in relato.lower() for w in ["falt", "ausent", "não veio", "nao veio"])
+        tem_ocorrencia = any(w in relato.lower() for w in ["indisciplin", "conflit", "briga", "agress"])
+
+        acoes: List[AcaoRecomendada] = []
+        if tem_falta:
+            acoes.append(AcaoRecomendada(
+                tipo="comunicado_familia",
+                titulo="Aviso de Falta à Família",
+                descricao="Foi detectada ausência no relato. Recomenda-se comunicar o responsável.",
+                urgencia="alta",
+                gatilho="[MOCK] palavra-chave de falta detectada no relato",
+            ))
+        if tem_ocorrencia:
+            acoes.append(AcaoRecomendada(
+                tipo="registro_ocorrencia",
+                titulo="Registro de Ocorrência Disciplinar",
+                descricao="Foi detectada menção a conflito ou indisciplina. Recomenda-se formalizar a ocorrência.",
+                urgencia="alta",
+                gatilho="[MOCK] palavra-chave de indisciplina detectada no relato",
+            ))
+        if not acoes:
+            acoes.append(AcaoRecomendada(
+                tipo="destaque_positivo",
+                titulo="Comunicado Positivo à Família",
+                descricao="Sem ocorrências. Recomenda-se um comunicado de aula produtiva.",
+                urgencia="baixa",
+                gatilho="[MOCK] relato sem ocorrências negativas",
+            ))
+
+        return RespostaDiario(
+            diario_formalizado=(
+                f"[MODO SIMULAÇÃO] Diário formalizado da turma {contexto.get('turma', '')} "
+                f"referente a {contexto.get('data_referencia', '')}.\n\n"
+                f"Conteúdo registrado: {relato or '[sem relato]'}"
+            ),
+            next_actions=acoes,
+            raciocinio=(
+                "**[MODO SIMULAÇÃO]** Análise baseada em palavras-chave do relato.\n\n"
+                "Ative o modo RAG no `.env` para análise real com documentos oficiais."
+            ),
+            fontes_consultadas=[
+                FonteConsultada(
+                    documento="[MOCK] Regimento Escolar",
+                    trecho="Diretrizes de comunicação escola-família...",
+                    relevancia="Alta",
+                )
+            ],
         )
 
     # ── Helpers internos ──────────────────────────────────────────────────────

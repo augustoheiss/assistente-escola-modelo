@@ -15,16 +15,22 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 import streamlit as st
 from datetime import date, datetime
 
-from core.escudo_rag import EscudoRAG
+from core.escudo_rag import EscudoRAG, AcaoRecomendada, _ACAO_PARA_TAREFA
 from core.auditoria import registrar_ciclo_completo, carregar_ciclos
 from config.settings import NOME_ESCOLA, MODO_OPERACAO
 
-# ── Constantes ────────────────────────────────────────────────────────────────
+# ── Mapeamento tipo de ação → label legível ───────────────────────────────────
+LABEL_ACAO = {
+    "comunicado_familia":         "📢 Gerar Comunicado à Família",
+    "registro_ocorrencia":        "📝 Gerar Registro de Ocorrência",
+    "encaminhamento_coordenacao": "🏫 Gerar Encaminhamento à Coordenação",
+    "destaque_positivo":          "🌟 Gerar Comunicado Positivo",
+}
 
-TIPOS_TAREFA = {
-    "comunicado_pais": "📢 Comunicado para os Responsáveis",
-    "registro_ocorrencia": "📝 Registro de Ocorrência",
-    "licao_de_casa": "📚 Lição de Casa",
+COR_URGENCIA = {
+    "alta":  ("#fff5f5", "#c0392b", "🔴"),
+    "media": ("#fffbeb", "#b7791f", "🟡"),
+    "baixa": ("#f0fff4", "#276749", "🟢"),
 }
 
 # ── CSS ───────────────────────────────────────────────────────────────────────
@@ -210,6 +216,44 @@ st.markdown("""
 }
 
 /* ══════════════════════════════════════════════════════
+   AÇÕES AGÊNTICAS — CARDS
+══════════════════════════════════════════════════════ */
+.acao-card {
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    margin-bottom: 0.9rem;
+    border-left: 5px solid;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+}
+.acao-alta  { background: #fff5f5; border-color: #c0392b; }
+.acao-media { background: #fffbeb; border-color: #b7791f; }
+.acao-baixa { background: #f0fff4; border-color: #276749; }
+.acao-titulo {
+    font-weight: 700;
+    font-size: 0.98rem;
+    color: #1a1a2e;
+    margin: 0 0 0.3rem;
+}
+.acao-desc  { font-size: 0.87rem; color: #4a5568; margin: 0 0 0.35rem; }
+.acao-gatilho {
+    font-size: 0.78rem;
+    color: #718096;
+    font-style: italic;
+    border-left: 2px solid #cbd5e0;
+    padding-left: 0.5rem;
+}
+.diario-box {
+    background: #f8faff;
+    border: 1px solid #c5cae9;
+    border-radius: 10px;
+    padding: 1.1rem 1.3rem;
+    white-space: pre-wrap;
+    font-size: 0.92rem;
+    line-height: 1.7;
+    color: #1a1a2e;
+}
+
+/* ══════════════════════════════════════════════════════
    CELULAR / PHONE FRAME
 ══════════════════════════════════════════════════════ */
 .celular-wrap {
@@ -386,111 +430,95 @@ tab1, tab2, tab3 = st.tabs([
 
 with tab1:
 
+    # ── Helper local de callback de aviso ─────────────────────────────────────
+    _aviso_slot = st.empty()
+
+    def _cb_aviso(msg: str) -> None:
+        if msg.startswith("⏳"):
+            _aviso_slot.warning(msg, icon="⏳")
+        else:
+            _aviso_slot.info(msg)
+
+    # ── Estado do ciclo ───────────────────────────────────────────────────────
+    _tem_diario   = "diario_analise"   in st.session_state
+    _confirmado   = st.session_state.get("diario_confirmado", False)
+    _tem_resposta = "resposta_rag"     in st.session_state
+
+    # ── Bloco final: aprovado ou enviado ──────────────────────────────────────
     if _aprovado:
         st.success("✅ Ciclo completo aprovado pelo gestor. Clique em **Nova Comunicação** na Aba 3.")
     elif _enviada:
         st.info("📤 Mensagem enviada à família. Aguarde a resposta na **Aba 2 — Celular da Família**.")
-    else:
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # STEP A — Formulário do Diário de Classe
+    # Exibido quando não há nenhum resultado ainda (ou depois de descartar)
+    # ══════════════════════════════════════════════════════════════════════════
+    elif not _tem_diario and not _tem_resposta:
         st.markdown(
             '<div class="step-header">'
             '<span class="step-num">1</span>'
-            '<span class="step-title">Descreva a tarefa</span>'
+            '<span class="step-title">Relato do Dia — Diário de Classe</span>'
             '</div>',
             unsafe_allow_html=True,
         )
 
-        col_tipo, col_turma = st.columns([2, 1])
-        with col_tipo:
-            tipo_selecionado = st.selectbox(
-                "Tipo de documento ou comunicação",
-                options=list(TIPOS_TAREFA.keys()),
-                format_func=lambda k: TIPOS_TAREFA[k],
-                key="tipo_tarefa",
-            )
+        col_turma, col_data = st.columns([2, 1])
         with col_turma:
             turma = st.text_input("Turma (ex: 7º B)", value="7º B", key="turma")
-
-        descricao = st.text_area(
-            "Contexto ou instrução adicional",
-            placeholder="Descreva o que precisa ser comunicado, o motivo da ocorrência ou os detalhes da atividade...",
-            height=100,
-            key="descricao",
-        )
-
-        col_data, col_aluno, col_status = st.columns([1, 2, 1])
         with col_data:
             data_ref = st.date_input("Data de referência", value=date.today(), key="data")
-        with col_aluno:
-            nome_aluno = st.text_input(
-                "Nome do aluno (se aplicável)",
-                placeholder="Deixe em branco se não for individual",
-                key="aluno",
-            )
-        with col_status:
-            status_aluno = st.radio(
-                "Status na aula",
-                options=["Presente", "Ausente (Faltou)"],
-                key="status_aluno",
-            )
 
-        _aluno_ausente = (status_aluno == "Ausente (Faltou)") and nome_aluno.strip()
-        if _aluno_ausente:
-            st.markdown(
-                f'<div class="bloco-ausencia"><strong>🏠 Contexto de ausência ativado: {nome_aluno.strip()}</strong><br>'
-                "O Escudo RAG adaptará a mensagem para ser acolhedora, informando o conteúdo da aula e enviando a lição de casa.</div>",
-                unsafe_allow_html=True,
-            )
+        nome_aluno = st.text_input(
+            "Aluno(s) envolvido(s) — opcional",
+            placeholder="Nome(s) se for relevante para o relato",
+            key="aluno",
+        )
+
+        relato = st.text_area(
+            "Relato do dia",
+            placeholder=(
+                "Descreva o que aconteceu na aula: conteúdo dado, atividades realizadas, "
+                "presenças/faltas, comportamentos relevantes, destaques positivos ou ocorrências...\n\n"
+                "Exemplo: 'Aula de frações. João faltou sem aviso. Maria se destacou resolvendo o "
+                "desafio extra. Houve uma discussão entre Carlos e Pedro que precisou de mediação.'"
+            ),
+            height=180,
+            key="relato",
+        )
 
         st.divider()
-
-        # ── Botão Gerar ──────────────────────────────────────────────────────
-
         col_btn, _ = st.columns([1, 3])
         with col_btn:
-            botao_gerar = st.button(
-                "🛡️ Gerar com Escudo RAG",
+            btn_analisar = st.button(
+                "🔍 Analisar Diário com Escudo RAG",
                 type="primary",
                 width="stretch",
-                disabled=not descricao.strip(),
+                disabled=not relato.strip(),
             )
-        if not descricao.strip():
-            st.caption("⬆️ Preencha o campo de contexto para habilitar a geração.")
+        if not relato.strip():
+            st.caption("⬆️ Escreva o relato do dia para habilitar a análise.")
 
-        if botao_gerar and descricao.strip():
-            _nota_ausencia = ""
-            if _aluno_ausente:
-                _nota_ausencia = (
-                    f"\n\n⚠️ NOTA DE AUSÊNCIA — {nome_aluno.strip()} faltou na aula de hoje. "
-                    "Adapte a mensagem para ser acolhedora: informe o conteúdo da aula, "
-                    "envie os materiais e a lição de casa. Não use tom punitivo."
-                )
-            contexto = {
-                "turma": turma,
-                "descricao": descricao + _nota_ausencia,
+        if btn_analisar and relato.strip():
+            ctx_diario = {
+                "turma":           turma,
                 "data_referencia": data_ref.strftime("%d/%m/%Y"),
-                "aluno": nome_aluno.strip() or "N/A",
-                "status_aluno": status_aluno,
-                "nome_escola": NOME_ESCOLA,
+                "aluno":           nome_aluno.strip() or "N/A",
+                "relato":          relato,
+                "nome_escola":     NOME_ESCOLA,
             }
-            _aviso_cota = st.empty()
-
-            def _cb_aviso(msg: str) -> None:
-                # Mensagens de Self-Healing (🔧 / ✅) → info azul
-                # Mensagens de Rate Limit (⏳)        → warning amarelo
-                if msg.startswith("⏳"):
-                    _aviso_cota.warning(msg, icon="⏳")
-                else:
-                    _aviso_cota.info(msg)
-
             try:
                 with st.spinner(
-                    "⚙️ Escudo RAG processando — "
-                    "pode levar 1-2 min no primeiro acesso na nuvem..."
+                    "⚙️ Escudo RAG analisando o diário — "
+                    "detectando ações necessárias..."
                 ):
-                    resposta = EscudoRAG().gerar(tipo_selecionado, contexto, callback_aviso=_cb_aviso)
-                st.session_state["resposta_rag"] = resposta
-                st.session_state["contexto_aula"] = contexto
-                st.session_state["tipo_tarefa_label"] = TIPOS_TAREFA[tipo_selecionado]
+                    resultado_diario = EscudoRAG().analisar_diario(
+                        ctx_diario, callback_aviso=_cb_aviso
+                    )
+                st.session_state["diario_analise"]   = resultado_diario
+                st.session_state["contexto_diario"]  = ctx_diario
+                st.session_state.pop("diario_confirmado", None)
+                st.session_state.pop("resposta_rag", None)
                 st.session_state.pop("mensagem_enviada", None)
                 st.session_state.pop("resposta_responsavel", None)
                 st.session_state.pop("ciclo_aprovado", None)
@@ -503,15 +531,223 @@ with tab1:
                     "O servidor continua ativo. Verifique o terminal para o traceback completo."
                 )
 
-    # ── Rascunho + Painel Azul ────────────────────────────────────────────────
-
-    if "resposta_rag" in st.session_state and not _enviada:
-        resposta = st.session_state["resposta_rag"]
+    # ══════════════════════════════════════════════════════════════════════════
+    # STEP B — Revisão do Diário Formalizado + Ações Recomendadas
+    # Exibido após analisar_diario() e antes do professor confirmar
+    # ══════════════════════════════════════════════════════════════════════════
+    elif _tem_diario and not _confirmado and not _tem_resposta:
+        analise: "RespostaDiario" = st.session_state["diario_analise"]
+        ctx = st.session_state.get("contexto_diario", {})
 
         st.markdown(
             '<div class="step-header">'
             '<span class="step-num">2</span>'
-            '<span class="step-title">Revise o rascunho</span>'
+            '<span class="step-title">Revisão do Diário Formalizado</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+
+        col_diario, col_rag = st.columns([3, 2])
+
+        with col_diario:
+            st.markdown("**✏️ Diário Formalizado (editável)**")
+            diario_editado = st.text_area(
+                label="diario",
+                value=analise.diario_formalizado,
+                height=280,
+                key="diario_editado",
+                label_visibility="collapsed",
+            )
+            st.caption("Edite se necessário. Este texto será registrado como Diário de Classe oficial.")
+
+        with col_rag:
+            st.markdown(
+                '<div class="bloco-escudo">'
+                '<div class="escudo-topbar">'
+                '<span style="font-size:1.1rem;">🛡️</span>'
+                '<span class="escudo-topbar-title">Raciocínio do Escudo RAG</span>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+            _rac = analise.raciocinio.replace("* **", "\n\n* **").strip()
+            st.markdown(_rac)
+            st.markdown(
+                '<hr style="border-color:#c5cae9;margin:0.8rem 0;">'
+                '<strong style="font-size:0.82rem;color:#1e3a5f;text-transform:uppercase;'
+                'letter-spacing:0.05em;">Fontes consultadas</strong>',
+                unsafe_allow_html=True,
+            )
+            for fonte in analise.fontes_consultadas:
+                cor   = "#2d6a4f" if fonte.relevancia == "Alta" else "#7c4d00"
+                icone = "🟢" if fonte.relevancia == "Alta" else "🟡"
+                st.markdown(
+                    f'<div class="fonte-item">'
+                    f'<strong style="color:#1a237e;">{fonte.documento}</strong><br>'
+                    f'<em style="color:#555;font-size:0.83rem;">"{fonte.trecho}"</em><br>'
+                    f'<span style="color:{cor};font-size:0.79rem;">'
+                    f'{icone} Relevância: {fonte.relevancia}</span>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        # ── Ações Recomendadas pelo pipeline Agentic ──────────────────────────
+        st.markdown(
+            '<div class="step-header" style="margin-top:1.4rem;">'
+            '<span class="step-num">3</span>'
+            '<span class="step-title">Ações Recomendadas pelo Sistema</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+
+        if analise.next_actions:
+            st.caption(
+                f"O Escudo RAG identificou **{len(analise.next_actions)} ação(ões)** "
+                "a partir do relato. Confirme o diário para liberar os botões de geração."
+            )
+            for acao in analise.next_actions:
+                bg, borda, emoji = COR_URGENCIA.get(acao.urgencia, COR_URGENCIA["media"])
+                st.markdown(
+                    f'<div class="acao-card acao-{acao.urgencia}">'
+                    f'<p class="acao-titulo">{emoji} {acao.titulo}</p>'
+                    f'<p class="acao-desc">{acao.descricao}</p>'
+                    f'<p class="acao-gatilho">💬 Gatilho detectado: <em>"{acao.gatilho}"</em></p>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+        else:
+            st.info("✅ Nenhuma ação pendente detectada. Você pode confirmar o diário e encerrá-lo.", icon="✅")
+
+        st.divider()
+        col_conf, col_desc = st.columns([2, 1])
+        with col_conf:
+            btn_confirmar = st.button(
+                "✅ Confirmar Diário e Ver Ações",
+                type="primary",
+                width="stretch",
+            )
+        with col_desc:
+            btn_refazer = st.button(
+                "🔄 Refazer Análise",
+                type="secondary",
+                width="stretch",
+            )
+
+        if btn_confirmar:
+            st.session_state["diario_confirmado"] = True
+            st.session_state["diario_editado_final"] = st.session_state.get(
+                "diario_editado", analise.diario_formalizado
+            )
+            st.rerun()
+
+        if btn_refazer:
+            for k in ["diario_analise", "diario_confirmado", "contexto_diario"]:
+                st.session_state.pop(k, None)
+            st.rerun()
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # STEP C — Disparo das Ações: geração de comunicados a partir das sugestões
+    # Exibido após confirmar o diário, antes de gerar o comunicado final
+    # ══════════════════════════════════════════════════════════════════════════
+    elif _tem_diario and _confirmado and not _tem_resposta:
+        analise: "RespostaDiario" = st.session_state["diario_analise"]
+        ctx = st.session_state.get("contexto_diario", {})
+
+        st.success(
+            f"✅ Diário de {ctx.get('turma','')} confirmado para {ctx.get('data_referencia','')}.",
+        )
+
+        diario_final = st.session_state.get(
+            "diario_editado_final", analise.diario_formalizado
+        )
+        with st.expander("📋 Ver Diário Confirmado", expanded=False):
+            st.markdown(f'<div class="diario-box">{diario_final}</div>', unsafe_allow_html=True)
+
+        st.markdown(
+            '<div class="step-header">'
+            '<span class="step-num">4</span>'
+            '<span class="step-title">Acionar Comunicações — Escolha uma ação</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+
+        if not analise.next_actions:
+            st.info("Nenhuma ação pendente foi detectada. O diário está registrado.", icon="✅")
+        else:
+            for i, acao in enumerate(analise.next_actions):
+                _, borda, emoji = COR_URGENCIA.get(acao.urgencia, COR_URGENCIA["media"])
+                col_card, col_btn = st.columns([4, 1])
+                with col_card:
+                    st.markdown(
+                        f'<div class="acao-card acao-{acao.urgencia}">'
+                        f'<p class="acao-titulo">{emoji} {acao.titulo}</p>'
+                        f'<p class="acao-desc">{acao.descricao}</p>'
+                        f'<p class="acao-gatilho">💬 Gatilho: <em>"{acao.gatilho}"</em></p>'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
+                with col_btn:
+                    label = LABEL_ACAO.get(acao.tipo, "📄 Gerar Documento")
+                    if st.button(label, key=f"btn_acao_{i}", width="stretch"):
+                        tipo_tarefa = _ACAO_PARA_TAREFA.get(acao.tipo, "comunicado_pais")
+                        contexto_completo = {
+                            "turma":           ctx.get("turma", ""),
+                            "data_referencia": ctx.get("data_referencia", ""),
+                            "aluno":           ctx.get("aluno", "N/A"),
+                            "nome_escola":     NOME_ESCOLA,
+                            # O contexto da ação é a descrição dela + o diário como base
+                            "descricao": (
+                                f"{acao.descricao}\n\n"
+                                f"Contexto do diário de classe:\n{diario_final}"
+                            ),
+                            "status_aluno": (
+                                "Ausente (Faltou)"
+                                if acao.tipo == "comunicado_familia"
+                                and "falt" in acao.gatilho.lower()
+                                else "Presente"
+                            ),
+                        }
+                        try:
+                            with st.spinner(
+                                f"⚙️ Gerando: {acao.titulo}..."
+                            ):
+                                resposta = EscudoRAG().gerar(
+                                    tipo_tarefa, contexto_completo, callback_aviso=_cb_aviso
+                                )
+                            st.session_state["resposta_rag"]      = resposta
+                            st.session_state["contexto_aula"]     = contexto_completo
+                            st.session_state["tipo_tarefa_label"] = acao.titulo
+                            st.session_state.pop("mensagem_enviada", None)
+                            st.session_state.pop("resposta_responsavel", None)
+                            st.session_state.pop("ciclo_aprovado", None)
+                            st.rerun()
+                        except Exception as e:
+                            import traceback
+                            traceback.print_exc()
+                            st.error(
+                                f"⚠️ Erro capturado: {str(e)}\n\n"
+                                "O servidor continua ativo. Veja o terminal."
+                            )
+
+        st.divider()
+        if st.button("🔄 Novo Diário", type="secondary"):
+            for k in ["diario_analise", "diario_confirmado", "contexto_diario",
+                      "diario_editado_final", "resposta_rag", "mensagem_enviada",
+                      "resposta_responsavel", "ciclo_aprovado"]:
+                st.session_state.pop(k, None)
+            st.rerun()
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # STEP D — Rascunho do Comunicado + Painel do Escudo RAG + Envio
+    # Exibido após gerar() ser chamado a partir de uma ação
+    # ══════════════════════════════════════════════════════════════════════════
+    if _tem_resposta and not _enviada and not _aprovado:
+        resposta = st.session_state["resposta_rag"]
+
+        st.markdown(
+            '<div class="step-header">'
+            '<span class="step-num">5</span>'
+            f'<span class="step-title">Revisão: {st.session_state.get("tipo_tarefa_label", "Comunicado")}</span>'
             '</div>',
             unsafe_allow_html=True,
         )
@@ -537,9 +773,6 @@ with tab1:
                 '</div>',
                 unsafe_allow_html=True,
             )
-            # Renderizar como Markdown puro — fora de qualquer tag <p> HTML,
-            # que suprimiria bullet points e quebras de linha.
-            # O replace garante separação visual mesmo se o LLM omitir a linha em branco.
             _rac = resposta.raciocinio.replace("* **", "\n\n* **").strip()
             st.markdown(_rac)
             st.markdown(
@@ -549,7 +782,7 @@ with tab1:
                 unsafe_allow_html=True,
             )
             for fonte in resposta.fontes_consultadas:
-                cor = "#2d6a4f" if fonte.relevancia == "Alta" else "#7c4d00"
+                cor   = "#2d6a4f" if fonte.relevancia == "Alta" else "#7c4d00"
                 icone = "🟢" if fonte.relevancia == "Alta" else "🟡"
                 st.markdown(
                     f'<div class="fonte-item">'
@@ -562,11 +795,10 @@ with tab1:
                 )
             st.markdown("</div>", unsafe_allow_html=True)
 
-        # ── Área de envio ─────────────────────────────────────────────────────
-
+        # ── Supervisão Humana — Envio ─────────────────────────────────────────
         st.markdown(
             '<div class="step-header" style="margin-top:1.4rem;">'
-            '<span class="step-num">3</span>'
+            '<span class="step-num">6</span>'
             '<span class="step-title">Supervisão Humana — Enviar ao Responsável</span>'
             '</div>',
             unsafe_allow_html=True,
@@ -612,7 +844,7 @@ with tab1:
             )
         with col_desc:
             btn_descartar = st.button(
-                "🗑️ Descartar Rascunho",
+                "🗑️ Voltar às Ações",
                 type="secondary",
                 width="stretch",
             )
@@ -621,9 +853,12 @@ with tab1:
             st.caption("⬆️ Preencha seu nome e marque a confirmação para habilitar o envio.")
 
         if btn_enviar:
-            st.session_state["mensagem_enviada"] = st.session_state.get("rascunho_editado", resposta.rascunho)
+            st.session_state["mensagem_enviada"]   = st.session_state.get("rascunho_editado", resposta.rascunho)
             st.session_state["professor_nome_log"] = professor_nome.strip()
-            st.session_state["havia_ausencia"] = _aluno_ausente
+            ctx_aula = st.session_state.get("contexto_aula", {})
+            st.session_state["havia_ausencia"] = (
+                ctx_aula.get("status_aluno", "") == "Ausente (Faltou)"
+            )
             st.rerun()
 
         if btn_descartar:
@@ -853,7 +1088,12 @@ with tab3:
         )
         if st.button("⚙️ Nova Comunicação", type="primary"):
             for k in [
+                # pipeline agentic (diário)
+                "diario_analise", "diario_confirmado", "contexto_diario",
+                "diario_editado_final",
+                # pipeline de comunicado
                 "resposta_rag", "contexto_aula", "tipo_tarefa_label", "rascunho_editado",
+                # ciclo de envio e aprovação
                 "mensagem_enviada", "professor_nome_log", "resposta_responsavel",
                 "ciclo_aprovado", "gestor_nome_final", "havia_ausencia",
                 "confirmacao_envio", "confirm_gestor",
