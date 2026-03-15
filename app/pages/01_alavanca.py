@@ -491,73 +491,70 @@ with tab1:
             unsafe_allow_html=True,
         )
 
-        col_turma, col_data = st.columns([2, 1])
-        with col_turma:
-            turma = st.text_input("Turma (ex: 7º B)", value="7º B", key="turma")
-        with col_data:
-            data_ref = st.date_input("Data de referência", value=date.today(), key="data")
+        with st.form(key="form_analisar_diario"):
+            col_turma, col_data = st.columns([2, 1])
+            with col_turma:
+                turma = st.text_input("Turma (ex: 7º B)", value="7º B", key="turma")
+            with col_data:
+                data_ref = st.date_input("Data de referência", value=date.today(), key="data")
 
-        nome_aluno = st.text_input(
-            "Aluno(s) envolvido(s) — opcional",
-            placeholder="Nome(s) se for relevante para o relato",
-            key="aluno",
-        )
-
-        relato = st.text_area(
-            "Relato do dia",
-            placeholder=(
-                "Descreva o que aconteceu na aula: conteúdo dado, atividades realizadas, "
-                "presenças/faltas, comportamentos relevantes, destaques positivos ou ocorrências...\n\n"
-                "Exemplo: 'Aula de frações. João faltou sem aviso. Maria se destacou resolvendo o "
-                "desafio extra. Houve uma discussão entre Carlos e Pedro que precisou de mediação.'"
-            ),
-            height=180,
-            key="relato",
-        )
-
-        st.divider()
-        col_btn, _ = st.columns([1, 3])
-        with col_btn:
-            btn_analisar = st.button(
-                "🔍 Analisar Diário com Escudo RAG",
-                type="primary",
-                width="stretch",
-                disabled=not relato.strip(),
+            nome_aluno = st.text_input(
+                "Aluno(s) envolvido(s) — opcional",
+                placeholder="Nome(s) se for relevante para o relato",
+                key="aluno",
             )
-        if not relato.strip():
-            st.caption("⬆️ Escreva o relato do dia para habilitar a análise.")
 
-        if btn_analisar and relato.strip():
-            ctx_diario = {
-                "turma":           turma,
-                "data_referencia": data_ref.strftime("%d/%m/%Y"),
-                "aluno":           nome_aluno.strip() or "N/A",
-                "relato":          relato,
-                "nome_escola":     NOME_ESCOLA,
-            }
-            try:
-                with st.spinner(
-                    "⚙️ Escudo RAG analisando o diário — "
-                    "detectando ações necessárias..."
-                ):
-                    resultado_diario = EscudoRAG().analisar_diario(
-                        ctx_diario, callback_aviso=_cb_aviso
+            relato = st.text_area(
+                "Relato do dia",
+                placeholder=(
+                    "Descreva o que aconteceu na aula: conteúdo dado, atividades realizadas, "
+                    "presenças/faltas, comportamentos relevantes, destaques positivos ou ocorrências...\n\n"
+                    "Exemplo: 'Aula de frações. João faltou sem aviso. Maria se destacou resolvendo o "
+                    "desafio extra. Houve uma discussão entre Carlos e Pedro que precisou de mediação.'"
+                ),
+                height=180,
+                key="relato",
+            )
+
+            col_btn, _ = st.columns([1, 3])
+            with col_btn:
+                btn_analisar = st.form_submit_button("🔍 Analisar Diário com Escudo RAG")
+        st.caption("⬆️ Preencha o relato e clique em Analisar. O formulário evita re-renders a cada tecla.")
+
+        if btn_analisar:
+            if not relato.strip():
+                st.error("⚠️ Por favor, preencha o relato do dia antes de analisar.")
+            else:
+                ctx_diario = {
+                    "turma":           turma,
+                    "data_referencia": data_ref.strftime("%d/%m/%Y"),
+                    "aluno":           nome_aluno.strip() or "N/A",
+                    "relato":          relato,
+                    "nome_escola":     NOME_ESCOLA,
+                }
+                try:
+                    with st.spinner(
+                        "⚙️ Escudo RAG analisando o diário — "
+                        "detectando ações necessárias..."
+                    ):
+                        resultado_diario = EscudoRAG().analisar_diario(
+                            ctx_diario, callback_aviso=_cb_aviso
+                        )
+                    st.session_state["diario_analise"]   = resultado_diario
+                    st.session_state["contexto_diario"]  = ctx_diario
+                    st.session_state.pop("diario_confirmado", None)
+                    st.session_state.pop("resposta_rag", None)
+                    st.session_state.pop("mensagem_enviada", None)
+                    st.session_state.pop("resposta_responsavel", None)
+                    st.session_state.pop("ciclo_aprovado", None)
+                    st.rerun()
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
+                    st.error(
+                        f"⚠️ Erro capturado pelo sistema: {str(e)}\n\n"
+                        "O servidor continua ativo. Verifique o terminal para o traceback completo."
                     )
-                st.session_state["diario_analise"]   = resultado_diario
-                st.session_state["contexto_diario"]  = ctx_diario
-                st.session_state.pop("diario_confirmado", None)
-                st.session_state.pop("resposta_rag", None)
-                st.session_state.pop("mensagem_enviada", None)
-                st.session_state.pop("resposta_responsavel", None)
-                st.session_state.pop("ciclo_aprovado", None)
-                st.rerun()
-            except Exception as e:
-                import traceback
-                traceback.print_exc()
-                st.error(
-                    f"⚠️ Erro capturado pelo sistema: {str(e)}\n\n"
-                    "O servidor continua ativo. Verifique o terminal para o traceback completo."
-                )
 
     # ══════════════════════════════════════════════════════════════════════════
     # STEP B — Revisão do Diário Formalizado + Ações Recomendadas
@@ -849,55 +846,49 @@ with tab1:
             unsafe_allow_html=True,
         )
 
-        professor_nome = st.text_input(
-            "Seu nome (aparecerá no log de auditoria)",
-            placeholder="Prof(a). Nome Sobrenome",
-            key="professor_nome",
-        )
-
-        _nome_incompleto = bool(
-            professor_nome.strip() and len(professor_nome.strip().split()) < 2
-        )
-        if _nome_incompleto:
-            st.info(
-                "Por favor, insira Nome e Sobrenome para registro no sistema "
-                "(ex: *Prof. Sérgio Oliveira*).",
-                icon="ℹ️",
+        with st.form(key="form_enviar_responsavel"):
+            professor_nome = st.text_input(
+                "Seu nome (aparecerá no log de auditoria)",
+                placeholder="Prof(a). Nome Sobrenome",
+                key="professor_nome",
             )
-
-        confirmacao = st.checkbox(
-            "Li o rascunho, revisei o raciocínio do Escudo RAG e assumo a responsabilidade por esta mensagem.",
-            key="confirmacao_envio",
-        )
-
-        _envio_bloqueado = not confirmacao or not professor_nome.strip() or _nome_incompleto
-        col_env, col_desc, _ = st.columns([1, 1, 2])
-        with col_env:
-            btn_enviar = st.button(
-                "📤 Enviar para o Responsável",
-                type="primary",
-                width="stretch",
-                disabled=_envio_bloqueado,
+            confirmacao = st.checkbox(
+                "Li o rascunho, revisei o raciocínio do Escudo RAG e assumo a responsabilidade por esta mensagem.",
+                key="confirmacao_envio",
             )
+            col_env, col_sp = st.columns([1, 3])
+            with col_env:
+                btn_enviar = st.form_submit_button("📤 Enviar para o Responsável")
+
+        if btn_enviar:
+            _nome_incompleto = bool(
+                professor_nome.strip() and len(professor_nome.strip().split()) < 2
+            )
+            if not professor_nome.strip():
+                st.error("⚠️ Por favor, preencha seu nome antes de enviar.")
+            elif _nome_incompleto:
+                st.error(
+                    "⚠️ Por favor, insira Nome e Sobrenome para registro no sistema "
+                    "(ex: Prof. Sérgio Oliveira)."
+                )
+            elif not confirmacao:
+                st.error("⚠️ Marque a confirmação de que revisou e assume a responsabilidade pela mensagem.")
+            else:
+                st.session_state["mensagem_enviada"]   = st.session_state.get("rascunho_editado", resposta.rascunho)
+                st.session_state["professor_nome_log"] = professor_nome.strip()
+                ctx_aula = st.session_state.get("contexto_aula", {})
+                st.session_state["havia_ausencia"] = (
+                    ctx_aula.get("status_aluno", "") == "Ausente (Faltou)"
+                )
+                st.rerun()
+
+        col_desc, _ = st.columns([1, 3])
         with col_desc:
             btn_descartar = st.button(
                 "🗑️ Voltar às Ações",
                 type="secondary",
                 width="stretch",
             )
-
-        if not confirmacao or not professor_nome.strip():
-            st.caption("⬆️ Preencha seu nome e marque a confirmação para habilitar o envio.")
-
-        if btn_enviar:
-            st.session_state["mensagem_enviada"]   = st.session_state.get("rascunho_editado", resposta.rascunho)
-            st.session_state["professor_nome_log"] = professor_nome.strip()
-            ctx_aula = st.session_state.get("contexto_aula", {})
-            st.session_state["havia_ausencia"] = (
-                ctx_aula.get("status_aluno", "") == "Ausente (Faltou)"
-            )
-            st.rerun()
-
         if btn_descartar:
             for k in ["resposta_rag", "contexto_aula", "tipo_tarefa_label", "rascunho_editado"]:
                 st.session_state.pop(k, None)
@@ -954,36 +945,34 @@ with tab2:
             st.subheader("✍️ Resposta do Responsável")
             st.caption("Simule a resposta que chegaria pelo aplicativo escolar.")
 
-            nome_responsavel = st.text_input(
-                "Nome do responsável",
-                placeholder="Ex: Maria da Silva (mãe de João)",
-                key="nome_responsavel",
-            )
-            resposta_texto = st.text_area(
-                "Mensagem de resposta",
-                placeholder="Ex: Boa tarde! João ficou doente hoje. Segue atestado médico. Obrigada.",
-                height=120,
-                key="resposta_texto",
-            )
-
-            col_resp, _ = st.columns([1, 3])
-            with col_resp:
-                btn_responder = st.button(
-                    "💬 Responder à Escola",
-                    type="primary",
-                    width="stretch",
-                    disabled=(not nome_responsavel.strip() or not resposta_texto.strip()),
+            with st.form(key="form_responder_escola"):
+                nome_responsavel = st.text_input(
+                    "Nome do responsável",
+                    placeholder="Ex: Maria da Silva (mãe de João)",
+                    key="nome_responsavel",
                 )
-            if not nome_responsavel.strip() or not resposta_texto.strip():
-                st.caption("⬆️ Preencha seu nome e a mensagem para responder.")
+                resposta_texto = st.text_area(
+                    "Mensagem de resposta",
+                    placeholder="Ex: Boa tarde! João ficou doente hoje. Segue atestado médico. Obrigada.",
+                    height=120,
+                    key="resposta_texto",
+                )
+                col_resp, _ = st.columns([1, 3])
+                with col_resp:
+                    btn_responder = st.form_submit_button("💬 Responder à Escola")
 
             if btn_responder:
-                st.session_state["resposta_responsavel"] = {
-                    "texto": resposta_texto.strip(),
-                    "nome": nome_responsavel.strip(),
-                    "hora": datetime.now().strftime("%H:%M"),
-                }
-                st.rerun()
+                if not nome_responsavel.strip():
+                    st.error("⚠️ Por favor, preencha o nome do responsável.")
+                elif not resposta_texto.strip():
+                    st.error("⚠️ Por favor, preencha a mensagem de resposta.")
+                else:
+                    st.session_state["resposta_responsavel"] = {
+                        "texto": resposta_texto.strip(),
+                        "nome": nome_responsavel.strip(),
+                        "hora": datetime.now().strftime("%H:%M"),
+                    }
+                    st.rerun()
 
         elif _respondida and not _aprovado:
             st.success("💬 Resposta registrada! Vá para a **Aba 3 — Mesa do Gestor** para aprovação.")
@@ -1058,24 +1047,21 @@ with tab3:
             unsafe_allow_html=True,
         )
 
-        gestor_nome = st.text_input(
-            "Nome do Gestor (aparecerá no log de auditoria)",
-            placeholder="Diretor(a) / Coordenador(a) Nome Sobrenome",
-            key="gestor_nome",
-        )
-        confirm_gestor = st.checkbox(
-            "Revisei o ciclo completo — a mensagem, a resposta da família e o raciocínio da IA — e aprovo este registro.",
-            key="confirm_gestor",
-        )
-
-        col_apr, col_neg, _ = st.columns([1, 1, 2])
-        with col_apr:
-            btn_aprovar = st.button(
-                "✅ Aprovar e Registrar",
-                type="primary",
-                width="stretch",
-                disabled=(not confirm_gestor or not gestor_nome.strip()),
+        with st.form(key="form_aprovar_gestor"):
+            gestor_nome = st.text_input(
+                "Nome do Gestor (aparecerá no log de auditoria)",
+                placeholder="Diretor(a) / Coordenador(a) Nome Sobrenome",
+                key="gestor_nome",
             )
+            confirm_gestor = st.checkbox(
+                "Revisei o ciclo completo — a mensagem, a resposta da família e o raciocínio da IA — e aprovo este registro.",
+                key="confirm_gestor",
+            )
+            col_apr, col_sp = st.columns([1, 3])
+            with col_apr:
+                btn_aprovar = st.form_submit_button("✅ Aprovar e Registrar")
+
+        col_neg, _ = st.columns([1, 3])
         with col_neg:
             btn_cancelar = st.button(
                 "↩️ Devolver ao Professor",
@@ -1083,27 +1069,29 @@ with tab3:
                 width="stretch",
             )
 
-        if not confirm_gestor or not gestor_nome.strip():
-            st.caption("⬆️ Preencha seu nome e marque a confirmação para aprovar.")
-
         if btn_aprovar:
-            registrar_ciclo_completo(
-                professor=professor,
-                aluno=contexto.get("aluno", "N/A"),
-                turma=contexto.get("turma", ""),
-                status_aluno=contexto.get("status_aluno", ""),
-                tipo_comunicacao=st.session_state.get("tipo_tarefa_label", ""),
-                mensagem_professor=st.session_state.get("mensagem_enviada", ""),
-                raciocinio_rag=resposta_rag.raciocinio if resposta_rag else "",
-                fontes_consultadas=resposta_rag.fontes_consultadas if resposta_rag else [],
-                resposta_responsavel=resp["texto"],
-                nome_responsavel=resp["nome"],
-                gestor_aprovador=gestor_nome.strip(),
-                modo_operacao=MODO_OPERACAO,
-            )
-            st.session_state["ciclo_aprovado"] = True
-            st.session_state["gestor_nome_final"] = gestor_nome.strip()
-            st.rerun()
+            if not gestor_nome.strip():
+                st.error("⚠️ Por favor, preencha o nome do gestor antes de aprovar.")
+            elif not confirm_gestor:
+                st.error("⚠️ Marque a confirmação de que revisou o ciclo e aprova o registro.")
+            else:
+                registrar_ciclo_completo(
+                    professor=professor,
+                    aluno=contexto.get("aluno", "N/A"),
+                    turma=contexto.get("turma", ""),
+                    status_aluno=contexto.get("status_aluno", ""),
+                    tipo_comunicacao=st.session_state.get("tipo_tarefa_label", ""),
+                    mensagem_professor=st.session_state.get("mensagem_enviada", ""),
+                    raciocinio_rag=resposta_rag.raciocinio if resposta_rag else "",
+                    fontes_consultadas=resposta_rag.fontes_consultadas if resposta_rag else [],
+                    resposta_responsavel=resp["texto"],
+                    nome_responsavel=resp["nome"],
+                    gestor_aprovador=gestor_nome.strip(),
+                    modo_operacao=MODO_OPERACAO,
+                )
+                st.session_state["ciclo_aprovado"] = True
+                st.session_state["gestor_nome_final"] = gestor_nome.strip()
+                st.rerun()
 
         if btn_cancelar:
             st.session_state.pop("resposta_responsavel", None)
