@@ -505,10 +505,26 @@ class EscudoRAG:
         # ── Parseia o JSON da resposta ────────────────────────────────────────
         saida = self._parse_json_resposta(resposta_llm.content)
 
+        # Aceita tanto "rascunho" (prompt padrão) quanto "draft"/"texto"/"conteudo"
+        # (caso o LLM use sinônimos). Qualquer chave desconhecida cai no fallback.
+        rascunho_val = (
+            saida.get("rascunho")
+            or saida.get("draft")
+            or saida.get("texto")
+            or saida.get("conteudo")
+            or ""
+        )
+        raciocinio_val = (
+            saida.get("raciocinio")
+            or saida.get("reasoning")
+            or saida.get("justificativa")
+            or "⚠️ Raciocínio não retornado pela IA neste ciclo."
+        )
+
         return RespostaRAG(
-            rascunho=saida["rascunho"],
+            rascunho=rascunho_val,
             fontes_consultadas=fontes,
-            raciocinio=saida["raciocinio"],
+            raciocinio=raciocinio_val,
             tipo_tarefa=tipo_tarefa,
             contexto_entrada=str(contexto),
         )
@@ -747,22 +763,56 @@ class EscudoRAG:
 
     @staticmethod
     def _parse_json_resposta(conteudo: str) -> dict:
-        """Extrai JSON da resposta do LLM de forma robusta."""
+        """
+        Extrai JSON da resposta do LLM de forma robusta.
+
+        Estratégia em 4 tentativas, da mais simples para a mais agressiva:
+          1. Parse direto (LLM seguiu o prompt certinho).
+          2. Remove SOMENTE o bloco de código externo (```json ... ```) sem usar
+             MULTILINE, que corromperia ``` dentro do conteúdo JSON.
+          3. Extrai entre o primeiro '{' e o último '}' do texto limpo.
+          4. Fallback: devolve o texto bruto em "rascunho" para o frontend tratar.
+        """
         conteudo = conteudo.strip()
-        # Remove blocos de código markdown (```json ... ```)
-        conteudo = re.sub(r"^```(?:json)?\s*", "", conteudo, flags=re.MULTILINE)
-        conteudo = re.sub(r"\s*```\s*$", "", conteudo, flags=re.MULTILINE)
+
+        # Tentativa 1 — parse direto
         try:
-            return json.loads(conteudo)
+            result = json.loads(conteudo)
+            if isinstance(result, dict):
+                return result
         except json.JSONDecodeError:
-            match = re.search(r"\{.*\}", conteudo, re.DOTALL)
-            if match:
-                try:
-                    return json.loads(match.group())
-                except json.JSONDecodeError:
-                    pass
+            pass
+
+        # Tentativa 2 — remove wrapper ```json ... ``` externo (sem MULTILINE)
+        # Limpa APENAS a primeira linha se for ```json e a última se for ```
+        linhas = conteudo.splitlines()
+        if linhas and linhas[0].strip().startswith("```"):
+            linhas = linhas[1:]
+        if linhas and linhas[-1].strip() == "```":
+            linhas = linhas[:-1]
+        conteudo_limpo = "\n".join(linhas).strip()
+
+        try:
+            result = json.loads(conteudo_limpo)
+            if isinstance(result, dict):
+                return result
+        except json.JSONDecodeError:
+            pass
+
+        # Tentativa 3 — extrai entre primeiro { e último }
+        idx_abre = conteudo_limpo.find("{")
+        idx_fecha = conteudo_limpo.rfind("}")
+        if idx_abre != -1 and idx_fecha != -1 and idx_fecha > idx_abre:
+            try:
+                result = json.loads(conteudo_limpo[idx_abre : idx_fecha + 1])
+                if isinstance(result, dict):
+                    return result
+            except json.JSONDecodeError:
+                pass
+
+        # Tentativa 4 — fallback: retorna o texto bruto para o frontend renderizar
         return {
-            "rascunho": conteudo,
+            "rascunho": conteudo_limpo or conteudo,
             "raciocinio": (
                 "⚠️ O raciocínio não pôde ser extraído automaticamente. "
                 "O texto acima é a resposta bruta da IA. Revise com atenção antes de aprovar."

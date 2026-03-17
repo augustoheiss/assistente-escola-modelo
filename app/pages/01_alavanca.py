@@ -36,47 +36,125 @@ COR_URGENCIA = {
 }
 
 
+def _tentar_parse_json(s: str) -> dict | None:
+    """
+    Tenta extrair um dict JSON de uma string usando 3 estratégias:
+    1. Parse direto.
+    2. Remove wrapper ```json ... ``` da primeira/última linha.
+    3. Extrai entre o primeiro '{' e o último '}'.
+    Retorna None se todas falharem.
+    """
+    s = s.strip()
+    if not s:
+        return None
+
+    # Estratégia 1 — parse direto
+    try:
+        data = json.loads(s)
+        if isinstance(data, dict):
+            return data
+    except json.JSONDecodeError:
+        pass
+
+    # Estratégia 2 — remove wrapper ```json ... ``` externo
+    linhas = s.splitlines()
+    if linhas and linhas[0].strip().startswith("```"):
+        linhas = linhas[1:]
+    if linhas and linhas[-1].strip() == "```":
+        linhas = linhas[:-1]
+    s2 = "\n".join(linhas).strip()
+    if s2 != s:
+        try:
+            data = json.loads(s2)
+            if isinstance(data, dict):
+                return data
+        except json.JSONDecodeError:
+            pass
+    else:
+        s2 = s
+
+    # Estratégia 3 — entre primeiro { e último }
+    idx_a = s2.find("{")
+    idx_f = s2.rfind("}")
+    if idx_a != -1 and idx_f != -1 and idx_f > idx_a:
+        try:
+            data = json.loads(s2[idx_a : idx_f + 1])
+            if isinstance(data, dict):
+                return data
+        except json.JSONDecodeError:
+            pass
+
+    return None
+
+
 def _extrair_rascunho_raciocinio(resposta) -> tuple:
     """
-    Parser de segurança: se o LLM retornou JSON bruto (ex: parsing falhou no backend),
-    extrai 'rascunho' e 'raciocinio' para exibição limpa.
-    Usa json.loads com try/except para JSONDecodeError. Plano B: exibe texto bruto.
+    Parser de segurança universal para RespostaRAG.
+
+    Cenários tratados:
+      A) Backend parseou corretamente → rascunho e raciocinio já são strings limpas.
+      B) Backend falhou e pôs o JSON bruto em rascunho → este parser desempacota.
+      C) LLM usou sinônimos (draft, texto, conteudo) → aceita qualquer chave comum.
+      D) Nenhum parse funciona → exibe o texto bruto (plano B).
     """
     rascunho = resposta.rascunho if hasattr(resposta, "rascunho") else str(resposta)
     raciocinio = resposta.raciocinio if hasattr(resposta, "raciocinio") else ""
-    if not (rascunho or "").strip():
-        return rascunho or "", raciocinio or ""
-
     s = (rascunho or "").strip()
-    # Remove blocos markdown ```json ... ``` que às vezes envolvem o output
-    if "```" in s:
-        s = re.sub(r"^```(?:json)?\s*\n?", "", s)
-        s = re.sub(r"\n?\s*```\s*$", "", s)
-        s = s.strip()
 
-    # Tenta interpretar como JSON (LLM às vezes devolve string bruta com chaves "rascunho" e "raciocinio")
-    if ("rascunho" in s or "raciocinio" in s) and ("{" in s and "}" in s):
-        try:
-            data = json.loads(s)
-            if isinstance(data, dict):
-                rascunho = data.get("rascunho", rascunho)
-                raciocinio = data.get("raciocinio", raciocinio)
-                return rascunho or "", raciocinio or ""
-        except json.JSONDecodeError:
-            # Tenta extrair trecho entre primeiro { e último }
-            idx_abre = s.find("{")
-            idx_fecha = s.rfind("}")
-            if idx_abre != -1 and idx_fecha != -1 and idx_fecha > idx_abre:
-                try:
-                    data = json.loads(s[idx_abre : idx_fecha + 1])
-                    if isinstance(data, dict):
-                        rascunho = data.get("rascunho", rascunho)
-                        raciocinio = data.get("raciocinio", raciocinio)
-                        return rascunho or "", raciocinio or ""
-                except json.JSONDecodeError:
-                    pass
-    # Plano B: retorna como recebido (exibição do texto bruto)
+    if not s:
+        return "", raciocinio or ""
+
+    # Só tenta desempacotar se a string parece conter JSON com chaves conhecidas
+    json_indicators = ("rascunho", "raciocinio", "draft", "texto", "conteudo", "reasoning")
+    tem_json = "{" in s and "}" in s and any(k in s for k in json_indicators)
+
+    if tem_json:
+        data = _tentar_parse_json(s)
+        if data:
+            rascunho = (
+                data.get("rascunho")
+                or data.get("draft")
+                or data.get("texto")
+                or data.get("conteudo")
+                or rascunho
+            )
+            raciocinio = (
+                data.get("raciocinio")
+                or data.get("reasoning")
+                or data.get("justificativa")
+                or raciocinio
+            )
+
     return rascunho or "", raciocinio or ""
+
+
+def _extrair_diario_raciocinio(analise) -> tuple:
+    """
+    Versão do parser para RespostaDiario.
+    Extrai diario_formalizado e raciocinio, tratando o caso em que o
+    LLM devolveu JSON bruto em diario_formalizado.
+    """
+    diario = getattr(analise, "diario_formalizado", "") or ""
+    raciocinio = getattr(analise, "raciocinio", "") or ""
+    s = diario.strip()
+
+    if not s:
+        return "", raciocinio
+
+    json_indicators = ("diario_formalizado", "rascunho", "raciocinio", "next_actions")
+    tem_json = "{" in s and "}" in s and any(k in s for k in json_indicators)
+
+    if tem_json:
+        data = _tentar_parse_json(s)
+        if data:
+            diario = (
+                data.get("diario_formalizado")
+                or data.get("rascunho")
+                or diario
+            )
+            raciocinio = data.get("raciocinio") or raciocinio
+
+    return diario or "", raciocinio or ""
 
 
 # ── CSS ───────────────────────────────────────────────────────────────────────
@@ -582,6 +660,9 @@ with tab1:
         analise: "RespostaDiario" = st.session_state["diario_analise"]
         ctx = st.session_state.get("contexto_diario", {})
 
+        # Parser de segurança: garante que diario_formalizado nunca seja JSON bruto
+        diario_exib, raciocinio_diario_exib = _extrair_diario_raciocinio(analise)
+
         st.markdown(
             '<div class="step-header">'
             '<span class="step-num">2</span>'
@@ -596,7 +677,7 @@ with tab1:
             st.markdown("**✏️ Diário Formalizado (editável)**")
             diario_editado = st.text_area(
                 label="diario",
-                value=analise.diario_formalizado,
+                value=diario_exib,
                 height=280,
                 key="diario_editado",
                 label_visibility="collapsed",
@@ -612,8 +693,9 @@ with tab1:
                 '</div>',
                 unsafe_allow_html=True,
             )
-            _rac = analise.raciocinio.replace("* **", "\n\n* **").strip()
-            st.markdown(_rac)
+            with st.expander("Ver Raciocínio e Fontes da IA", expanded=False):
+                _rac = (raciocinio_diario_exib or "").replace("* **", "\n\n* **").strip()
+                st.markdown(_rac)
             st.markdown(
                 '<hr style="border-color:#c5cae9;margin:0.8rem 0;">'
                 '<strong style="font-size:0.82rem;color:#1e3a5f;text-transform:uppercase;'
