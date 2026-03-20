@@ -172,6 +172,50 @@ Se não houver ações necessárias, retorne "next_actions": [].
 """
 
 
+def _sanitize_json_literals(content: str) -> str:
+    """
+    Escapa caracteres de controle literais (\\n, \\r, \\t) que aparecem dentro
+    de valores de string JSON.
+
+    LLMs frequentemente retornam JSON tecnicamente inválido onde o valor de um
+    campo contém quebras de linha literais em vez da sequência de escape \\\\n.
+    Esta função percorre o conteúdo caractere por caractere, respeitando as
+    sequências de escape já existentes, e escapa apenas os literais problemáticos
+    que estão dentro de strings JSON.
+    """
+    result: list[str] = []
+    in_string = False
+    i = 0
+    while i < len(content):
+        c = content[i]
+        if c == "\\" and in_string:
+            # Consume the backslash + next char as a valid escape sequence.
+            result.append(c)
+            i += 1
+            if i < len(content):
+                result.append(content[i])
+                i += 1
+            continue
+        if c == '"':
+            result.append(c)
+            in_string = not in_string
+            i += 1
+            continue
+        if in_string:
+            if c == "\n":
+                result.append("\\n")
+            elif c == "\r":
+                result.append("\\r")
+            elif c == "\t":
+                result.append("\\t")
+            else:
+                result.append(c)
+        else:
+            result.append(c)
+        i += 1
+    return "".join(result)
+
+
 # ── Classe principal ──────────────────────────────────────────────────────────
 
 class EscudoRAG:
@@ -766,12 +810,15 @@ class EscudoRAG:
         """
         Extrai JSON da resposta do LLM de forma robusta.
 
-        Estratégia em 4 tentativas, da mais simples para a mais agressiva:
+        Estratégia em 5 tentativas, da mais simples para a mais agressiva:
           1. Parse direto (LLM seguiu o prompt certinho).
           2. Remove SOMENTE o bloco de código externo (```json ... ```) sem usar
              MULTILINE, que corromperia ``` dentro do conteúdo JSON.
-          3. Extrai entre o primeiro '{' e o último '}' do texto limpo.
-          4. Fallback: devolve o texto bruto em "rascunho" para o frontend tratar.
+          3. Sanitiza quebras de linha literais dentro de valores de string e
+             re-tenta o parse (erro mais comum do Gemini).
+          4. Extrai entre o primeiro '{' e o último '}' do texto limpo, com e
+             sem sanitização de literais.
+          5. Fallback: devolve o texto bruto em "rascunho" para o frontend tratar.
         """
         conteudo = conteudo.strip()
 
@@ -799,18 +846,32 @@ class EscudoRAG:
         except json.JSONDecodeError:
             pass
 
-        # Tentativa 3 — extrai entre primeiro { e último }
-        idx_abre = conteudo_limpo.find("{")
-        idx_fecha = conteudo_limpo.rfind("}")
-        if idx_abre != -1 and idx_fecha != -1 and idx_fecha > idx_abre:
+        # Tentativa 3 — sanitiza literais de controle e re-tenta o parse direto.
+        # Corrige o erro mais comum do Gemini: quebras de linha literais dentro
+        # de valores de string JSON (ex: "rascunho": "linha1\nlinha2" sem escape).
+        conteudo_sanitizado = _sanitize_json_literals(conteudo_limpo)
+        if conteudo_sanitizado != conteudo_limpo:
             try:
-                result = json.loads(conteudo_limpo[idx_abre : idx_fecha + 1])
+                result = json.loads(conteudo_sanitizado)
                 if isinstance(result, dict):
                     return result
             except json.JSONDecodeError:
                 pass
 
-        # Tentativa 4 — fallback: retorna o texto bruto para o frontend renderizar
+        # Tentativa 4 — extrai entre primeiro { e último } (com e sem sanitização)
+        idx_abre = conteudo_limpo.find("{")
+        idx_fecha = conteudo_limpo.rfind("}")
+        if idx_abre != -1 and idx_fecha != -1 and idx_fecha > idx_abre:
+            candidato = conteudo_limpo[idx_abre : idx_fecha + 1]
+            for texto in (candidato, _sanitize_json_literals(candidato)):
+                try:
+                    result = json.loads(texto)
+                    if isinstance(result, dict):
+                        return result
+                except json.JSONDecodeError:
+                    pass
+
+        # Tentativa 5 — fallback: retorna o texto bruto para o frontend renderizar
         return {
             "rascunho": conteudo_limpo or conteudo,
             "raciocinio": (

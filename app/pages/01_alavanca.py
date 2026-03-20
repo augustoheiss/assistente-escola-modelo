@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 import streamlit as st
 from datetime import date, datetime
 
-from core.escudo_rag import EscudoRAG, AcaoRecomendada, _ACAO_PARA_TAREFA
+from core.escudo_rag import EscudoRAG, AcaoRecomendada, _ACAO_PARA_TAREFA, _sanitize_json_literals
 from core.auditoria import registrar_ciclo_completo, carregar_ciclos
 from config.settings import NOME_ESCOLA, MODO_OPERACAO
 
@@ -84,6 +84,21 @@ def _tentar_parse_json(s: str) -> dict | None:
         except json.JSONDecodeError:
             pass
 
+    # Estratégia 4 — sanitiza literais de controle e re-tenta (com e sem extração
+    # de chaves), cobrindo o erro mais comum do Gemini: quebras de linha literais
+    # dentro de valores de string JSON.
+    for base in (s2, s2[s2.find("{") : s2.rfind("}") + 1] if "{" in s2 and "}" in s2 else ""):
+        if not base:
+            continue
+        sanitizado = _sanitize_json_literals(base)
+        if sanitizado != base:
+            try:
+                data = json.loads(sanitizado)
+                if isinstance(data, dict):
+                    return data
+            except json.JSONDecodeError:
+                pass
+
     return None
 
 
@@ -124,6 +139,28 @@ def _extrair_rascunho_raciocinio(resposta) -> tuple:
                 or data.get("justificativa")
                 or raciocinio
             )
+        else:
+            # Fallback de último recurso: extração direta via regex mesmo com JSON
+            # inválido. Captura o valor de "rascunho" mesmo contendo literais de
+            # controle ou aspas mal-escapadas que impedem o parse normal.
+            m = re.search(r'"rascunho"\s*:\s*"((?:[^"\\]|\\.|\n|\r)*?)"(?=\s*[,}])', s, re.DOTALL)
+            if m:
+                rascunho = (
+                    m.group(1)
+                    .replace("\\n", "\n")
+                    .replace("\\t", "\t")
+                    .replace('\\"', '"')
+                    .replace("\\\\", "\\")
+                )
+            m_rac = re.search(r'"raciocinio"\s*:\s*"((?:[^"\\]|\\.|\n|\r)*?)"(?=\s*[,}])', s, re.DOTALL)
+            if m_rac:
+                raciocinio = (
+                    m_rac.group(1)
+                    .replace("\\n", "\n")
+                    .replace("\\t", "\t")
+                    .replace('\\"', '"')
+                    .replace("\\\\", "\\")
+                )
 
     return rascunho or "", raciocinio or ""
 
@@ -153,6 +190,26 @@ def _extrair_diario_raciocinio(analise) -> tuple:
                 or diario
             )
             raciocinio = data.get("raciocinio") or raciocinio
+        else:
+            # Fallback de último recurso: extração direta via regex.
+            m = re.search(r'"diario_formalizado"\s*:\s*"((?:[^"\\]|\\.|\n|\r)*?)"(?=\s*[,}])', s, re.DOTALL)
+            if m:
+                diario = (
+                    m.group(1)
+                    .replace("\\n", "\n")
+                    .replace("\\t", "\t")
+                    .replace('\\"', '"')
+                    .replace("\\\\", "\\")
+                )
+            m_rac = re.search(r'"raciocinio"\s*:\s*"((?:[^"\\]|\\.|\n|\r)*?)"(?=\s*[,}])', s, re.DOTALL)
+            if m_rac:
+                raciocinio = (
+                    m_rac.group(1)
+                    .replace("\\n", "\n")
+                    .replace("\\t", "\t")
+                    .replace('\\"', '"')
+                    .replace("\\\\", "\\")
+                )
 
     return diario or "", raciocinio or ""
 
