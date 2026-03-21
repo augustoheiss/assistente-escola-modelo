@@ -216,7 +216,7 @@ with col_v:
         '<p class="video-card-desc">Do manifesto ao código — como o Escudo RAG e a supervisão humana trabalham juntos.</p>',
         unsafe_allow_html=True,
     )
-    st.video("https://www.youtube.com/watch?v=dX5yKonrWP4")
+    st.video("https://youtu.be/sLhxml3Lfok")
     st.markdown("</div>", unsafe_allow_html=True)
 
 
@@ -239,7 +239,7 @@ with col_p:
         '<p class="video-card-desc">Da lei da alavanca à ética assimétrica de Levinas — a base filosófica do projeto.</p>',
         unsafe_allow_html=True,
     )
-    st.video("https://www.youtube.com/watch?v=yC34sSWONd0")
+    st.video("https://youtu.be/j3sf_kZuDD4")
     st.markdown("</div>", unsafe_allow_html=True)
 
 
