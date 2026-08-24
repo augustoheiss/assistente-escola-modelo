@@ -1,4 +1,4 @@
-# Ambiente Python
+﻿# Ambiente Python
 __pycache__/
 *.py[cod]
 *.pyo
@@ -6,20 +6,20 @@ __pycache__/
 venv/
 env/
 
-# Variáveis de ambiente e segredos
+# VariÃ¡veis de ambiente e segredos
 .env
 
 # Banco de dados e dados locais
 # *.db
 # *.sqlite3
 
-# Documentos da escola (PDFs — não versionar, apenas o placeholder)
+# Documentos da escola (PDFs â€” nÃ£o versionar, apenas o placeholder)
 #data/documentos_escola/*
 #!data/documentos_escola/.gitkeep
 
 # Base vetorial ChromaDB (gerada pelo setup_db.py)
 
-# Logs de auditoria (dados em produção — não versionar)
+# Logs de auditoria (dados em produÃ§Ã£o â€” nÃ£o versionar)
 #data/logs/
 
 # IDEs
@@ -28,3 +28,7 @@ env/
 *.swp
 ngrok.exe
 
+
+.gemini/
+.agents/
+.cursor/
